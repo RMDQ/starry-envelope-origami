@@ -1,46 +1,67 @@
 import * as THREE from 'three';
 
-export const CARD_CANVAS_WIDTH = 1200;
-export const CARD_CANVAS_HEIGHT = 1664;
+export const CARD_CANVAS_WIDTH = 1600;
+export const CARD_CANVAS_HEIGHT = 1284;
 
 const PAPER_PALETTES = {
   ivory: {
-    bgTop: '#fffdf8',
-    bgBot: '#f7f1e3',
-    border: '#d9c8a9',
-    accent: '#b8945a',
-    title: '#242b42',
-    body: '#3a425c',
-    muted: '#7a8096',
+    bgTop: '#f6f6fa',
+    bgBot: '#eeeef3',
+    border: '#cfd6e4',
+    accent: '#143a63',
+    title: '#0a1e38',
+    body: '#122847',
+    muted: '#4e637e',
   },
   blush: {
-    bgTop: '#fff9fb',
-    bgBot: '#f8e9f0',
-    border: '#dfc0ce',
-    accent: '#b97895',
-    title: '#3a2434',
-    body: '#553a4d',
-    muted: '#8f6f85',
+    bgTop: '#f8f5f8',
+    bgBot: '#f1ecef',
+    border: '#d6c8d1',
+    accent: '#59324c',
+    title: '#24111f',
+    body: '#361b2f',
+    muted: '#6e4f64',
   },
   sky: {
-    bgTop: '#f8fbff',
-    bgBot: '#e8f1fb',
-    border: '#bfd1e8',
-    accent: '#5f84b8',
-    title: '#1b2c47',
-    body: '#314666',
-    muted: '#6c82a3',
+    bgTop: '#f5f7fb',
+    bgBot: '#edeff6',
+    border: '#c9d3e4',
+    accent: '#143a63',
+    title: '#0a1e38',
+    body: '#122847',
+    muted: '#4e637e',
   },
   lavender: {
-    bgTop: '#faf8ff',
-    bgBot: '#ece7f8',
-    border: '#cbc0e6',
-    accent: '#7c69b5',
-    title: '#272146',
-    body: '#413a66',
-    muted: '#7b739e',
+    bgTop: '#f6f5fa',
+    bgBot: '#eeeef5',
+    border: '#cfcae0',
+    accent: '#2a3764',
+    title: '#14193b',
+    body: '#212752',
+    muted: '#575c82',
   },
 };
+
+function drawCrispText(ctx, text, x, y, strokeWidth = 1.15, strokeAlpha = 0.42, maxWidth = undefined) {
+  if (maxWidth !== undefined) {
+    ctx.fillText(text, x, y, maxWidth);
+  } else {
+    ctx.fillText(text, x, y);
+  }
+  if (strokeWidth > 0 && strokeAlpha > 0 && typeof ctx.strokeText === 'function') {
+    ctx.save();
+    ctx.strokeStyle = ctx.fillStyle;
+    ctx.lineWidth = strokeWidth;
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = (ctx.globalAlpha || 1) * strokeAlpha;
+    if (maxWidth !== undefined) {
+      ctx.strokeText(text, x, y, maxWidth);
+    } else {
+      ctx.strokeText(text, x, y);
+    }
+    ctx.restore();
+  }
+}
 
 /**
  * Pure line-wrapping function supporting mixed CJK, Latin words, and explicit newlines.
@@ -87,40 +108,27 @@ function drawPaperBackground(ctx, w, h, palette) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
 
-  // Subtle fiber speckles
+  // Subtle paper fiber grain matching the waiting card in opened.png
   ctx.save();
-  ctx.globalAlpha = 0.035;
+  ctx.globalAlpha = 0.018;
   for (let i = 0; i < 650; i++) {
-    const x = ((i * 7919) % 1000) / 1000 * w;
-    const y = ((i * 6271) % 1000) / 1000 * h;
-    ctx.fillStyle = i % 2 === 0 ? '#5c4d3c' : '#ffffff';
+    const x = (((i * 7919) % 1000) / 1000) * w;
+    const y = (((i * 6271) % 1000) / 1000) * h;
+    ctx.fillStyle = i % 2 === 0 ? '#6e7688' : '#ffffff';
     ctx.fillRect(x, y, 2, 2);
   }
   ctx.restore();
 
-  // Outer fine frame
+  // Crisp white outer paper rim highlight matching opened.png waiting card
   ctx.save();
-  ctx.strokeStyle = palette.border;
+  ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 4;
-  ctx.strokeRect(32, 32, w - 64, h - 64);
+  ctx.strokeRect(2, 2, w - 4, h - 4);
 
-  ctx.strokeStyle = palette.accent;
-  ctx.globalAlpha = 0.42;
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(46, 46, w - 92, h - 92);
-
-  // Corner star ornaments
-  const corners = [
-    [46, 46],
-    [w - 46, 46],
-    [46, h - 46],
-    [w - 46, h - 46],
-  ];
-  ctx.fillStyle = palette.accent;
-  ctx.globalAlpha = 0.65;
-  for (const [cx, cy] of corners) {
-    drawFourPointStar(ctx, cx, cy, 8);
-  }
+  // Subtle inner stationery hairline
+  ctx.strokeStyle = palette.border;
+  ctx.lineWidth = 2.5;
+  ctx.strokeRect(36, 36, w - 72, h - 72);
   ctx.restore();
 }
 
@@ -166,7 +174,7 @@ function drawContainedOrCoveredImage(ctx, img, boxX, boxY, boxW, boxH, fitMode) 
   if (fitMode === 'cover') {
     ctx.save();
     ctx.beginPath();
-    ctx.roundRect(boxX, boxY, boxW, boxH, 18);
+    ctx.roundRect(boxX, boxY, boxW, boxH, 16);
     ctx.clip();
 
     let drawW, drawH, dx, dy;
@@ -187,11 +195,10 @@ function drawContainedOrCoveredImage(ctx, img, boxX, boxY, boxW, boxH, fitMode) 
   }
 
   // 'contain' — guarantees 100% of uploaded image & embedded text stays visible
-  // without awkward gray letterbox bars around landscape/square photos.
   const rect = computeContainedBox(img, boxX, boxY, boxW, boxH);
   ctx.save();
   ctx.beginPath();
-  ctx.roundRect(rect.dx, rect.dy, rect.drawW, rect.drawH, 16);
+  ctx.roundRect(rect.dx, rect.dy, rect.drawW, rect.drawH, 14);
   ctx.clip();
   ctx.drawImage(img, rect.dx, rect.dy, rect.drawW, rect.drawH);
   ctx.restore();
@@ -219,28 +226,27 @@ export function renderCardToCanvas(card) {
   const fitMode = card.imageFit || 'contain';
 
   if (hasImage && layout === 'full') {
-    // Full-bleed crisp photo inside clean thin stationery border
-    const pad = 60;
+    const pad = 56;
     const boxW = CARD_CANVAS_WIDTH - pad * 2;
-    const boxH = title || body ? CARD_CANVAS_HEIGHT - 290 : CARD_CANVAS_HEIGHT - pad * 2;
+    const boxH = title || body ? CARD_CANVAS_HEIGHT - 250 : CARD_CANVAS_HEIGHT - pad * 2;
     drawContainedOrCoveredImage(ctx, card.imageElement, pad, pad, boxW, boxH, fitMode);
 
     if (title || body) {
-      const textTop = pad + boxH + 34;
+      const textTop = pad + boxH + 26;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       if (title) {
         ctx.fillStyle = palette.title;
-        ctx.font = '600 42px "Noto Serif SC", "Songti SC", "PingFang SC", Georgia, serif';
-        ctx.fillText(title, CARD_CANVAS_WIDTH / 2, textTop, boxW);
+        ctx.font = '700 42px "Noto Serif SC", "Songti SC", "PingFang SC", Georgia, serif';
+        drawCrispText(ctx, title, CARD_CANVAS_WIDTH / 2, textTop, 1.1, 0.42, boxW);
       }
       if (body) {
         ctx.fillStyle = palette.body;
-        ctx.font = '400 31px "PingFang SC", "Microsoft YaHei", sans-serif';
-        const lines = wrapTextLines(ctx, body, boxW - 40).slice(0, 3);
-        const startY = title ? textTop + 58 : textTop + 12;
+        ctx.font = '600 32px "PingFang SC", "Microsoft YaHei", sans-serif';
+        const lines = wrapTextLines(ctx, body, boxW - 40).slice(0, 2);
+        const startY = title ? textTop + 54 : textTop + 10;
         lines.forEach((line, i) => {
-          ctx.fillText(line, CARD_CANVAS_WIDTH / 2, startY + i * 44, boxW);
+          drawCrispText(ctx, line, CARD_CANVAS_WIDTH / 2, startY + i * 44, 0.9, 0.36, boxW);
         });
       }
     }
@@ -249,10 +255,10 @@ export function renderCardToCanvas(card) {
 
   if (hasImage) {
     // Polaroid / stationery frame: generous crisp image + elegant caption block below
-    const padX = 88;
-    const imgY = 96;
+    const padX = 84;
+    const imgY = 76;
     const boxW = CARD_CANVAS_WIDTH - padX * 2;
-    const boxH = title || body ? 1020 : CARD_CANVAS_HEIGHT - 192;
+    const boxH = title || body ? 860 : CARD_CANVAS_HEIGHT - 152;
 
     const frameRect =
       fitMode === 'cover'
@@ -261,9 +267,9 @@ export function renderCardToCanvas(card) {
 
     // Subtle photo shadow mat tightly hugging the actual image bounds
     ctx.save();
-    ctx.fillStyle = 'rgba(20, 28, 48, 0.085)';
+    ctx.fillStyle = 'rgba(20, 28, 48, 0.095)';
     ctx.beginPath();
-    ctx.roundRect(frameRect.dx + 5, frameRect.dy + 7, frameRect.drawW, frameRect.drawH, 16);
+    ctx.roundRect(frameRect.dx + 4, frameRect.dy + 6, frameRect.drawW, frameRect.drawH, 14);
     ctx.fill();
     ctx.restore();
 
@@ -274,12 +280,12 @@ export function renderCardToCanvas(card) {
     ctx.strokeStyle = palette.border;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.roundRect(frameRect.dx, frameRect.dy, frameRect.drawW, frameRect.drawH, 16);
+    ctx.roundRect(frameRect.dx, frameRect.dy, frameRect.drawW, frameRect.drawH, 14);
     ctx.stroke();
     ctx.restore();
 
     // Caption area
-    const textAreaTop = imgY + boxH + 52;
+    const textAreaTop = imgY + boxH + 38;
     const maxTextW = boxW - 24;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -287,86 +293,84 @@ export function renderCardToCanvas(card) {
     let cursorY = textAreaTop;
     if (title) {
       ctx.fillStyle = palette.title;
-      ctx.font = '600 52px "Noto Serif SC", "Songti SC", "PingFang SC", Georgia, serif';
+      ctx.font = '700 48px "Noto Serif SC", "Songti SC", "PingFang SC", Georgia, serif';
       const titleLines = wrapTextLines(ctx, title, maxTextW).slice(0, 2);
       titleLines.forEach((line) => {
-        ctx.fillText(line, CARD_CANVAS_WIDTH / 2, cursorY);
-        cursorY += 66;
+        drawCrispText(ctx, line, CARD_CANVAS_WIDTH / 2, cursorY, 1.15, 0.42);
+        cursorY += 60;
       });
-      cursorY += 14;
+      cursorY += 10;
     }
 
     if (body) {
       ctx.fillStyle = palette.body;
-      ctx.font = '400 38px "PingFang SC", "Microsoft YaHei", sans-serif';
-      const maxLines = title ? 5 : 7;
+      ctx.font = '600 36px "PingFang SC", "Microsoft YaHei", sans-serif';
+      const maxLines = title ? 3 : 5;
       const lines = wrapTextLines(ctx, body, maxTextW).slice(0, maxLines);
       lines.forEach((line) => {
-        ctx.fillText(line, CARD_CANVAS_WIDTH / 2, cursorY);
-        cursorY += 56;
+        drawCrispText(ctx, line, CARD_CANVAS_WIDTH / 2, cursorY, 0.95, 0.36);
+        cursorY += 50;
       });
     }
     return canvas;
   }
 
   // Pure text stationery letter card
-  const marginX = 128;
+  const marginX = 140;
   const maxTextW = CARD_CANVAS_WIDTH - marginX * 2;
 
   // Decorative top header emblem
   ctx.save();
   ctx.fillStyle = palette.accent;
-  ctx.globalAlpha = 0.72;
-  drawFourPointStar(ctx, CARD_CANVAS_WIDTH / 2, 152, 16);
+  ctx.globalAlpha = 0.85;
+  drawFourPointStar(ctx, CARD_CANVAS_WIDTH / 2, 128, 15);
   ctx.strokeStyle = palette.accent;
-  ctx.globalAlpha = 0.3;
-  ctx.lineWidth = 2;
+  ctx.globalAlpha = 0.42;
+  ctx.lineWidth = 2.4;
   ctx.beginPath();
-  ctx.moveTo(marginX + 90, 152);
-  ctx.lineTo(CARD_CANVAS_WIDTH / 2 - 32, 152);
-  ctx.moveTo(CARD_CANVAS_WIDTH / 2 + 32, 152);
-  ctx.lineTo(CARD_CANVAS_WIDTH - marginX - 90, 152);
+  ctx.moveTo(marginX + 140, 128);
+  ctx.lineTo(CARD_CANVAS_WIDTH / 2 - 32, 128);
+  ctx.moveTo(CARD_CANVAS_WIDTH / 2 + 32, 128);
+  ctx.lineTo(CARD_CANVAS_WIDTH - marginX - 140, 128);
   ctx.stroke();
   ctx.restore();
 
   ctx.textBaseline = 'top';
 
-  // Auto-size body font cleanly so short quotes look bold/poetic and longer letters fit cleanly
-  const bodyFontSize = body.length > 140 ? 40 : body.length > 70 ? 46 : 54;
+  const bodyFontSize = body.length > 140 ? 40 : body.length > 70 ? 46 : 52;
   const lineHeight = Math.round(bodyFontSize * 1.55);
 
-  ctx.font = `600 64px "Noto Serif SC", "Songti SC", "PingFang SC", Georgia, serif`;
+  ctx.font = `700 62px "Noto Serif SC", "Songti SC", "PingFang SC", Georgia, serif`;
   const titleLines = title ? wrapTextLines(ctx, title, maxTextW).slice(0, 3) : [];
 
-  ctx.font = `400 ${bodyFontSize}px "Noto Serif SC", "PingFang SC", "Microsoft YaHei", sans-serif`;
-  const bodyLines = body ? wrapTextLines(ctx, body, maxTextW).slice(0, 15) : [];
+  ctx.font = `600 ${bodyFontSize}px "Noto Serif SC", "PingFang SC", "Microsoft YaHei", sans-serif`;
+  const bodyLines = body ? wrapTextLines(ctx, body, maxTextW).slice(0, 11) : [];
 
-  const titleHeight = titleLines.length * 84 + (titleLines.length ? 42 : 0);
+  const titleHeight = titleLines.length * 80 + (titleLines.length ? 40 : 0);
   const bodyHeight = bodyLines.length * lineHeight;
   const totalHeight = titleHeight + bodyHeight;
-  const availableTop = 228;
-  const availableHeight = CARD_CANVAS_HEIGHT - 375;
-  let cursorY = availableTop + Math.max(0, (availableHeight - totalHeight) * 0.42);
+  const availableTop = 190;
+  const availableHeight = CARD_CANVAS_HEIGHT - 300;
+  let cursorY = availableTop + Math.max(0, (availableHeight - totalHeight) * 0.45);
 
   ctx.textAlign = 'center';
   if (titleLines.length > 0) {
     ctx.fillStyle = palette.title;
-    ctx.font = '600 64px "Noto Serif SC", "Songti SC", "PingFang SC", Georgia, serif';
+    ctx.font = '700 62px "Noto Serif SC", "Songti SC", "PingFang SC", Georgia, serif';
     for (const line of titleLines) {
-      ctx.fillText(line, CARD_CANVAS_WIDTH / 2, cursorY);
-      cursorY += 84;
+      drawCrispText(ctx, line, CARD_CANVAS_WIDTH / 2, cursorY, 1.35, 0.45);
+      cursorY += 80;
     }
-    // Small divider dot
     ctx.fillStyle = palette.accent;
-    ctx.fillRect(CARD_CANVAS_WIDTH / 2 - 30, cursorY + 10, 60, 2.5);
-    cursorY += 52;
+    ctx.fillRect(CARD_CANVAS_WIDTH / 2 - 34, cursorY + 8, 68, 3.2);
+    cursorY += 48;
   }
 
   if (bodyLines.length > 0) {
     ctx.fillStyle = palette.body;
-    ctx.font = `400 ${bodyFontSize}px "Noto Serif SC", "PingFang SC", "Microsoft YaHei", sans-serif`;
+    ctx.font = `600 ${bodyFontSize}px "Noto Serif SC", "PingFang SC", "Microsoft YaHei", sans-serif`;
     for (const line of bodyLines) {
-      ctx.fillText(line, CARD_CANVAS_WIDTH / 2, cursorY);
+      drawCrispText(ctx, line, CARD_CANVAS_WIDTH / 2, cursorY, 1.05, 0.38);
       cursorY += lineHeight;
     }
   }
@@ -377,8 +381,8 @@ export function renderCardToCanvas(card) {
 export function createCardPreviewUrl(card) {
   const full = renderCardToCanvas(card);
   const thumb = document.createElement('canvas');
-  thumb.width = 216;
-  thumb.height = 300;
+  thumb.width = 260;
+  thumb.height = 208;
   const tctx = thumb.getContext('2d');
   tctx.imageSmoothingEnabled = true;
   tctx.imageSmoothingQuality = 'high';

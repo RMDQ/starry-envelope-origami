@@ -63,11 +63,10 @@ export class OrigamiCard {
       this.material.emissive.set('#ffffff').lerp(new THREE.Color('#ffe0ad'), Math.min(1, g * 0.78));
       this.material.emissiveIntensity = 0.30 + g * 0.78;
     } else if (this._foldProgress <= 0.001 && this._pocketDim > 0.001) {
-      // Soft twilight shading while nestled behind sheer lace so embroidery pops crisply
-      const d = Math.max(0, Math.min(1, this._pocketDim));
+      // Match the exact unlit true-color brightness of the waiting card in the pocket
       this.material.color.setRGB(0, 0, 0);
-      this.material.emissive.set('#ffffff').lerp(new THREE.Color('#dce2ef'), d * 0.55);
-      this.material.emissiveIntensity = 1.0 - d * 0.36;
+      this.material.emissive.set('#ffffff');
+      this.material.emissiveIntensity = 1.0;
     } else {
       // At foldProgress=0: color=0, emissive=1.0 -> exact 1:1 true-color card artwork
       // At foldProgress=1: color=1, emissive=0.26 -> crisp, luminous sculpted paper creases

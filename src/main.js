@@ -5,6 +5,10 @@ import { StarryNightScene } from './scene/StarryNightScene.js';
 import { EnvelopeMesh } from './scene/EnvelopeMesh.js';
 import { MeteorShower } from './scene/MeteorShower.js';
 import { AnimationDirector } from './scene/AnimationDirector.js';
+import coverAssetUrl from '../assets/images/cover.png';
+import openedAssetUrl from '../assets/images/opened.png';
+
+EnvelopeMesh.setAssetUrls(coverAssetUrl, openedAssetUrl);
 
 const PHASE_LABELS = {
   idle: '准备就绪',

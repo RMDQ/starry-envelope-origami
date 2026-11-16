@@ -2,12 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {
+  CARD_WIDTH,
   CARD_HEIGHT,
   getOrigamiGeometryData,
   interpolateOrigamiPositions,
 } from '../src/scene/OrigamiGeometry.js';
 import { OrigamiCard } from '../src/scene/OrigamiCard.js';
 import { AnimationDirector } from '../src/scene/AnimationDirector.js';
+import {
+  POCKET_CARD_SCALE,
+  POCKET_CARD_OPEN_Y,
+} from '../src/scene/EnvelopeMesh.js';
 
 test('OrigamiGeometry mid-fold applies organic center-outward camber while keeping endpoints exact', () => {
   for (const shape of ['plane', 'butterfly', 'crane']) {
@@ -518,4 +523,90 @@ test('AnimationDirector transitions intro->extracting across repeated resetToIdl
 
   director.resetToIdle();
   tex.dispose();
+});
+
+test('AnimationDirector matches extracting card size/position/color with waiting card and removes waiting card when final card is drawn', () => {
+  let waitingVisible = true;
+  let stackCount = 3;
+  const envGroup = new THREE.Group();
+  const bodyGroup = new THREE.Group();
+  envGroup.add(bodyGroup);
+
+  const dummyScene = {
+    camera: { fov: 42, aspect: 1.6 },
+    bgScene: new THREE.Scene(),
+    fgContentGroup: new THREE.Group(),
+    cameraOffset: new THREE.Vector3(),
+    cameraLookOffset: new THREE.Vector3(),
+    cameraBreath: 1,
+    dofAmount: 0,
+    milkyWayIntensity: 0,
+    update() {},
+    render() {},
+  };
+  const dummyEnvelope = {
+    group: envGroup,
+    bodyGroup,
+    setFlapOpen() {},
+    setWaitingCardVisible(v) {
+      waitingVisible = Boolean(v);
+    },
+    setLetterStack(n) {
+      stackCount = n;
+    },
+    triggerExtractPulse() {},
+    updateIdleMotion() {},
+  };
+  const dummyMeteor = {
+    emitSparkleBurst() {},
+    emitTrailDot() {},
+    startShower() {},
+    stopAndClear() {},
+    spawnMeteor() {},
+    update() {},
+  };
+
+  const director = new AnimationDirector({
+    scene: dummyScene,
+    envelope: dummyEnvelope,
+    meteorShower: dummyMeteor,
+  });
+
+  const cards = [
+    { texture: new THREE.Texture(), origamiShape: 'plane' },
+    { texture: new THREE.Texture(), origamiShape: 'butterfly' },
+  ];
+
+  director.play(cards, { holdDuration: 1.0, origamiShape: 'auto' });
+  assert.equal(waitingVisible, true);
+
+  // When Card 0 starts extracting (not the final card), waiting card stays visible in the pocket
+  const tCard0 = director.masterTl.labels.card_0;
+  director.masterTl.seek(tCard0 + 0.001, false);
+  director.update(1000);
+  assert.equal(waitingVisible, true);
+
+  // At extraction start (p ~ 0), Card 0 matches the waiting card's open Y position, scale, and 1:1 color
+  envGroup.updateMatrixWorld(true);
+  const localCard0 = director.activeOrigamis[0].card.group.position
+    .clone()
+    .applyMatrix4(bodyGroup.matrixWorld.clone().invert());
+  assert.ok(Math.abs(localCard0.x) < 1e-3);
+  assert.ok(Math.abs(localCard0.y - POCKET_CARD_OPEN_Y) < 1e-2);
+  assert.ok(Math.abs(director.activeOrigamis[0].card.group.scale.x - POCKET_CARD_SCALE) < 0.02);
+  assert.equal(director.activeOrigamis[0].card.material.color.r, 0);
+  assert.equal(director.activeOrigamis[0].card.material.emissiveIntensity, 1.0);
+  assert.ok(CARD_WIDTH * POCKET_CARD_SCALE > 1.7);
+
+  // When final card (Card 1) starts extracting, waiting card is removed from the pocket
+  const tCard1 = director.masterTl.labels.card_1;
+  director.masterTl.seek(tCard1 + 0.05, false);
+  director.update(2000);
+  assert.equal(waitingVisible, false);
+  assert.equal(stackCount, 0);
+
+  // Resetting to idle restores the waiting card
+  director.resetToIdle();
+  assert.equal(waitingVisible, true);
+  cards.forEach((c) => c.texture.dispose());
 });

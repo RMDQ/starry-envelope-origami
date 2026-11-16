@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>星夜信封折纸 · 3D 浪漫互动回忆生成器</title>
   <link rel="stylesheet" href="./styles/main.css">
 </head>
+
 <body>
   <div class="app-shell" id="app-shell">
     <main class="stage-root" id="stage-root">
@@ -13,12 +15,7 @@
       <canvas id="scene-canvas" class="scene-canvas" aria-label="深蓝夜空蕾丝信封与折纸飞行 3D 动画舞台"></canvas>
 
       <!-- Ending Finale Blessing Overlay ("化作星河 / 漫天飞舞") -->
-      <section
-        id="ending-overlay"
-        class="ending-overlay"
-        aria-live="polite"
-        aria-hidden="true"
-      >
+      <section id="ending-overlay" class="ending-overlay" aria-live="polite" aria-hidden="true">
         <div class="ending-card">
           <p id="ending-title-display" class="ending-title">愿所有温柔与星光，都奔你而来</p>
           <p id="ending-signature-display" class="ending-signature">—— 致最特别的你</p>
@@ -59,13 +56,7 @@
           </div>
 
           <label for="image-upload-input" id="dropzone" class="dropzone">
-            <input
-              type="file"
-              id="image-upload-input"
-              accept="image/*"
-              multiple
-              class="visually-hidden"
-            >
+            <input type="file" id="image-upload-input" accept="image/*" multiple class="visually-hidden">
             <span class="dropzone-title">点击批量上传卡片图片，或拖拽图片到这里</span>
             <span class="dropzone-hint">支持 JPG / PNG / WebP 多选，3D 展示时保持 100% 原始清晰度</span>
           </label>
@@ -162,7 +153,7 @@
 
           <div class="field">
             <label for="ending-title-input">星河结尾祝福语</label>
-            <input type="text" id="ending-title-input" maxlength="50" value="愿所有温柔与星光，都奔你而来">
+            <input type="text" id="ending-title-input" maxlength="150" value="愿所有温柔与星光，都奔你而来">
           </div>
 
           <div class="field">
@@ -221,8 +212,10 @@
         <li><strong>批量准备卡片</strong>：上传横图或竖图照片（自动完整保留不裁切），也可添加文字卡片并自由调整标题与配文。</li>
         <li><strong>清晰展信阶段</strong>：每张卡片抽出后会自动飞到镜头正前方，背景启动柔焦景深，文字与照片 100% 锐利停留 3 秒。</li>
         <li><strong>折纸与星河结尾</strong>：展示后卡片平滑折叠为纸飞机 / 蝴蝶 / 千纸鹤环绕飞舞，最终全部发光升空化作流星雨，中央浮现专属祝福语。</li>
-        <li><strong>一键录屏导出</strong>：勾选「点击播放时自动进入全屏」，开启 Windows <kbd>Win</kbd>+<kbd>G</kbd>、Mac <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>5</kbd> 或 OBS 录屏即可。</li>
-        <li><strong>Instagram 9:16 竖屏录屏</strong>：在「录屏画幅比例」中选择 <strong>Instagram 竖屏 9:16</strong>。在 2560×1600 屏幕上全屏后，中央画框为精确 <strong>900×1600</strong>（9:16），所有控制栏都会自动留在画框外侧，使用 OBS 裁剪中央 900×1600 区域即可获得零遮挡的纯净竖屏视频。</li>
+        <li><strong>一键录屏导出</strong>：勾选「点击播放时自动进入全屏」，开启 Windows <kbd>Win</kbd>+<kbd>G</kbd>、Mac
+          <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>5</kbd> 或 OBS 录屏即可。</li>
+        <li><strong>Instagram 9:16 竖屏录屏</strong>：在「录屏画幅比例」中选择 <strong>Instagram 竖屏 9:16</strong>。在 2560×1600
+          屏幕上全屏后，中央画框为精确 <strong>900×1600</strong>（9:16），所有控制栏都会自动留在画框外侧，使用 OBS 裁剪中央 900×1600 区域即可获得零遮挡的纯净竖屏视频。</li>
       </ol>
       <div class="shortcut-box">
         <p><strong>播放快捷键：</strong> <kbd>Space</kbd> 暂停/继续 · <kbd>R</kbd> 重新播放 · <kbd>Esc</kbd> 退出全屏 / 返回编辑</p>
@@ -237,4 +230,5 @@
 
   <script defer src="./dist/app.bundle.js"></script>
 </body>
+
 </html>

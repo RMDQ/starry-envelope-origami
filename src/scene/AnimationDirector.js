@@ -1,7 +1,12 @@
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { OrigamiCard } from './OrigamiCard.js';
-import { CARD_WIDTH } from './OrigamiGeometry.js';
+import { CARD_WIDTH, CARD_HEIGHT } from './OrigamiGeometry.js';
+import {
+  POCKET_CARD_SCALE,
+  POCKET_CARD_CLOSED_Y,
+  POCKET_CARD_OPEN_Y,
+} from './EnvelopeMesh.js';
 
 // Prevent GSAP's default 500ms/33ms lag-smoothing from freezing timeline progress on
 // software WebGL (SwiftShader) or low-FPS frames while still capping multi-second stalls
@@ -67,12 +72,14 @@ export class AnimationDirector {
     this.orbitTime = 0;
     this._lastUpdateTs = null;
     this._trailTimer = 0;
+    this._flapOpenProgress = 0;
 
     // Envelope starts hovering gently in lower frame until Play begins
     this.envelope.group.position.set(0, -1.48, 0.2);
     this.envelope.group.rotation.set(0.14, 0, 0);
     this.envelope.group.visible = true;
     this.envelope.setFlapOpen(0);
+    this.envelope.setWaitingCardVisible?.(true);
     this.envelope.setLetterStack?.(3);
   }
 
@@ -95,18 +102,15 @@ export class AnimationDirector {
 
   _applyPocketSlotPose(entry) {
     const slot = Math.max(0, Math.min(2.8, entry.pocketSlot));
-    const fanSign = entry.index % 2 === 0 ? -1 : 1;
-    const slotFrac = Math.min(1, slot);
-    const peek = slot < 1 ? (entry.pocketPeek || 0) * (1 - slot) : 0;
+    const cardRise = THREE.MathUtils.smoothstep(this._flapOpenProgress, 0.12, 0.92);
+    const baseY = THREE.MathUtils.lerp(POCKET_CARD_CLOSED_Y, POCKET_CARD_OPEN_Y, cardRise);
     const localPos = new THREE.Vector3(
-      slot === 0 ? 0 : fanSign * 0.018 * slotFrac,
-      -0.155 - slot * 0.016 + peek * 0.072,
-      0.028 - slot * 0.013
+      0,
+      baseY - slot * 0.004,
+      -0.022 - slot * 0.006
     );
-    const localQuat = new THREE.Quaternion().setFromEuler(
-      new THREE.Euler(0, 0, (slot === 0 ? 0 : -fanSign * 0.024 * slotFrac) - (entry.launchSide || 1) * 0.028 * peek)
-    );
-    const localScale = 0.62 - slot * 0.01;
+    const localQuat = new THREE.Quaternion();
+    const localScale = POCKET_CARD_SCALE;
     entry.card.pocketDim = 0.62 + Math.min(1.6, slot) * 0.16;
     entry.card.breezeFlex = 0;
     this._pocketToWorld(
@@ -122,17 +126,13 @@ export class AnimationDirector {
   _evalExtractPocketLocal(entry, p) {
     const pSplit = 0.44;
     const u1 = Math.max(0, Math.min(1, p / pSplit));
-    const antPhase = Math.sin(Math.min(1, u1 / 0.24) * Math.PI);
-    const anticipation = -0.068 * antPhase;
-    const r = Math.max(0, (u1 - 0.10) / 0.90);
-    const lift = r * r * (1.42 - 0.42 * r);
-    const startY = -0.155 + (entry.index === 0 ? 0.072 : 0);
-    const localY = startY + anticipation + (1.62 - startY) * lift;
-    const localX = entry.launchSide * 0.052 * Math.sin(u1 * Math.PI * 0.78);
+    const lift = u1 * u1 * (1.42 - 0.42 * u1);
+    const startY = POCKET_CARD_OPEN_Y;
+    const localY = startY + (1.65 - startY) * lift;
+    const localX = entry.launchSide * 0.024 * lift * Math.sin(u1 * Math.PI * 0.85);
     const localZ = 0.028;
-    const localScale = THREE.MathUtils.lerp(0.62, 0.67, lift);
-    const startRz = entry.index === 0 ? -entry.launchSide * 0.028 * (1 - lift) : 0;
-    const localRz = startRz + entry.launchSide * (0.056 * lift - 0.032 * antPhase);
+    const localScale = THREE.MathUtils.lerp(POCKET_CARD_SCALE, 0.67, lift);
+    const localRz = entry.launchSide * 0.032 * lift;
     const pocketDim = THREE.MathUtils.lerp(0.62, 0.06, THREE.MathUtils.smoothstep(u1, 0.22, 1.0));
     return { localX, localY, localZ, localRz, localScale, pocketDim };
   }
@@ -220,11 +220,13 @@ export class AnimationDirector {
     this.isPaused = false;
     this._hiddenPaused = false;
     this.orbitTime = 0;
+    this._flapOpenProgress = 0;
     this.envelope.group.visible = true;
     this.envelope.group.position.set(0, -1.48, 0.2);
     this.envelope.group.rotation.set(0.14, 0, 0);
     this.envelope.group.scale.setScalar(1);
     this.envelope.setFlapOpen(0);
+    this.envelope.setWaitingCardVisible?.(true);
     this.envelope.setLetterStack?.(3);
     this.onPhaseChange('idle', 0, 0);
   }
@@ -358,7 +360,11 @@ export class AnimationDirector {
     const vFovRad = THREE.MathUtils.degToRad(this.scene.camera.fov);
     const visibleH = 2 * camDist * Math.tan(vFovRad * 0.5);
     const visibleW = visibleH * this.scene.camera.aspect;
-    const showcaseScale = Math.min(1.16, (visibleW * 0.78) / CARD_WIDTH);
+    const showcaseScale = Math.min(
+      1.04,
+      (visibleW * 0.78) / CARD_WIDTH,
+      (visibleH * 0.76) / CARD_HEIGHT
+    );
     const xSpread = Math.min(1.0, Math.max(0.56, this.scene.camera.aspect / 1.18));
 
     const tl = gsap.timeline({
@@ -370,7 +376,7 @@ export class AnimationDirector {
     this.masterTl = tl;
     this.onPhaseChange('intro', 0, preparedCards.length);
 
-    // 1. Intro: Envelope sweeps in on a buoyant 3D curve & opens scalloped lace flap
+    // 1. Intro: Envelope sweeps in on a buoyant 3D curve & opens top flap
     const envGroup = this.envelope.group;
     envGroup.visible = true;
     const envStart = new THREE.Vector3(-4.8, -3.1, -5.0);
@@ -381,7 +387,9 @@ export class AnimationDirector {
     envGroup.rotation.set(-0.34, -0.92, 0.40);
     envGroup.scale.setScalar(0.28);
     envGroup.updateMatrixWorld?.(true);
+    this._flapOpenProgress = 0;
     this.envelope.setFlapOpen(0);
+    this.envelope.setWaitingCardVisible?.(true);
     this.envelope.setLetterStack?.(Math.max(0, preparedCards.length - 3));
 
     const introProxy = { p: 0 };
@@ -432,7 +440,7 @@ export class AnimationDirector {
       'introStart'
     );
 
-    // Begin lifting lace flap during the final arc of arrival (no dead pause)
+    // Begin lifting flap during the final arc of arrival (no dead pause)
     tl.to(
       flapProxy,
       {
@@ -440,7 +448,11 @@ export class AnimationDirector {
         duration: 0.85,
         ease: 'back.out(1.08)',
         onUpdate: () => {
+          this._flapOpenProgress = flapProxy.p;
           this.envelope.setFlapOpen(flapProxy.p);
+          for (const pe of this.pocketEntries) {
+            if (pe.inPocket) this._applyPocketSlotPose(pe);
+          }
         },
       },
       'introStart+=0.88'
@@ -590,6 +602,11 @@ export class AnimationDirector {
           orbitEntry.extractProgress = 0;
           orbitEntry.extractExitCaptured = false;
           card.group.visible = true;
+          if (i === total - 1) {
+            // Final card is now being drawn -> remove the waiting card from the pocket
+            this.envelope.setWaitingCardVisible?.(false);
+            this.envelope.setLetterStack?.(0);
+          }
           this.envelope.triggerExtractPulse?.(0.45);
           const mouthPos = new THREE.Vector3();
           const mouthQuat = new THREE.Quaternion();
@@ -651,6 +668,9 @@ export class AnimationDirector {
           onUpdate: () => {
             const p = extractProxy.p;
             orbitEntry.extractProgress = p;
+            if (i === total - 1 && p > 0) {
+              this.envelope.setWaitingCardVisible?.(false);
+            }
 
             if (p <= pSplit) {
               if (promotedToFg) {

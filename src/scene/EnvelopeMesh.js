@@ -1,1112 +1,986 @@
 import * as THREE from 'three';
+import { CARD_WIDTH, CARD_HEIGHT } from './OrigamiGeometry.js';
+
+export const POCKET_CARD_SCALE = 0.62;
+export const POCKET_CARD_CLOSED_Y = -0.155;
+export const POCKET_CARD_OPEN_Y = 0.48;
 
 const ENVELOPE_THEMES = {
   'pearl-ivory': {
-    laceThread: '#ffffff',
-    laceFill: '#f4f7ff',
-    laceShadow: '#c3cde0',
-    laceEmissive: '#ffffff',
-    laceEmissiveIntensity: 0.52,
-    backTint: '#d8e0ef',
-    letterPaper: '#efe6d2',
-    letterPaperEdge: '#e4d8be',
-    letterInk: 'rgba(112, 95, 72, 0.30)',
+    paperTint: '#ffffff',
+    paperShadow: '#d8dce4',
+    linerTop: '#a3b7c9',
+    linerMid: '#96aec2',
+    linerBottom: '#869fb5',
+    inkColor: '#1b4978',
+    emissiveColor: '#ffffff',
+    emissiveIntensity: 0.76,
+    diffuseColor: '#303642',
   },
   'midnight-gold': {
-    laceThread: '#fff6da',
-    laceFill: '#f2d996',
-    laceShadow: '#9a732a',
-    laceEmissive: '#fff0c7',
-    laceEmissiveIntensity: 0.42,
-    backTint: '#d2b470',
-    letterPaper: '#eee3cb',
-    letterPaperEdge: '#e2d4b5',
-    letterInk: 'rgba(105, 86, 54, 0.30)',
+    paperTint: '#fffcf5',
+    paperShadow: '#dfd5c0',
+    linerTop: '#9fb4c7',
+    linerMid: '#90a8be',
+    linerBottom: '#7f98b0',
+    inkColor: '#1b4978',
+    emissiveColor: '#fffaf0',
+    emissiveIntensity: 0.76,
+    diffuseColor: '#33302a',
   },
   'lavender-mist': {
-    laceThread: '#ffffff',
-    laceFill: '#ede4ff',
-    laceShadow: '#a38ed0',
-    laceEmissive: '#f4ecff',
-    laceEmissiveIntensity: 0.48,
-    backTint: '#d3c4ed',
-    letterPaper: '#efe8f5',
-    letterPaperEdge: '#e2d7ec',
-    letterInk: 'rgba(100, 84, 124, 0.28)',
+    paperTint: '#fcfaff',
+    paperShadow: '#dad4e6',
+    linerTop: '#a2b5ca',
+    linerMid: '#94aac0',
+    linerBottom: '#859cb4',
+    inkColor: '#1b4978',
+    emissiveColor: '#faf7ff',
+    emissiveIntensity: 0.76,
+    diffuseColor: '#302e3a',
   },
 };
 
-/**
- * Deterministic PRNG so floral lace motifs render identically and cleanly across runs.
- */
-function createRng(seed = 1337) {
-  let s = seed >>> 0;
-  return () => {
-    s = (s * 1664525 + 1013904223) >>> 0;
-    return s / 4294967296;
-  };
-}
-
-/**
- * Draws a corded embroidery path simultaneously onto colorCanvas (with relief shading)
- * and alphaCanvas (crisp solid white on black for smooth openwork cutouts).
- */
-function strokeCord(cCtx, aCtx, drawPath, width, theme) {
-  cCtx.save();
-  cCtx.lineCap = 'round';
-  cCtx.lineJoin = 'round';
-  cCtx.translate(1.2, 1.2);
-  cCtx.strokeStyle = theme.laceShadow;
-  cCtx.lineWidth = width + 0.8;
-  drawPath(cCtx);
-  cCtx.stroke();
-  cCtx.restore();
-
-  cCtx.save();
-  cCtx.lineCap = 'round';
-  cCtx.lineJoin = 'round';
-  cCtx.strokeStyle = theme.laceThread;
-  cCtx.lineWidth = width;
-  drawPath(cCtx);
-  cCtx.stroke();
-  cCtx.restore();
-
-  aCtx.save();
-  aCtx.lineCap = 'round';
-  aCtx.lineJoin = 'round';
-  aCtx.strokeStyle = '#ffffff';
-  aCtx.lineWidth = width;
-  drawPath(aCtx);
-  aCtx.stroke();
-  aCtx.restore();
-}
-
-/**
- * Draws a clear, recognizable openwork lace rose medallion with scalloped petals,
- * crisp open petal eyelets, and a spoked eyelet wheel center.
- */
-function drawLaceRose(cCtx, aCtx, cx, cy, radius, rot, petals, theme) {
-  cCtx.save();
-  cCtx.translate(cx, cy);
-  cCtx.rotate(rot);
-  aCtx.save();
-  aCtx.translate(cx, cy);
-  aCtx.rotate(rot);
-
-  const outerCount = petals;
-  const cordW = Math.max(2.7, radius * 0.088);
-
-  for (let i = 0; i < outerCount; i++) {
-    const a = (i / outerCount) * Math.PI * 2;
-    cCtx.save();
-    cCtx.rotate(a);
-    aCtx.save();
-    aCtx.rotate(a);
-
-    const pLen = radius * 0.96;
-    const pWid = radius * 0.45;
-    const drawPetal = (ctx) => {
-      ctx.beginPath();
-      ctx.moveTo(radius * 0.24, 0);
-      ctx.bezierCurveTo(radius * 0.42, -pWid, pLen * 0.94, -pWid * 0.76, pLen, 0);
-      ctx.bezierCurveTo(pLen * 0.94, pWid * 0.76, radius * 0.42, pWid, radius * 0.24, 0);
-      ctx.closePath();
-    };
-
-    drawPetal(cCtx);
-    cCtx.fillStyle = theme.laceFill;
-    cCtx.fill();
-
-    drawPetal(aCtx);
-    aCtx.fillStyle = '#ffffff';
-    aCtx.fill();
-
-    strokeCord(cCtx, aCtx, drawPetal, cordW, theme);
-
-    // Clean open eyelet inside each petal so starry sky & cream letters shine through
-    const drawHole = (ctx) => {
-      ctx.beginPath();
-      ctx.ellipse(radius * 0.63, 0, radius * 0.22, radius * 0.14, 0, 0, Math.PI * 2);
-    };
-    drawHole(aCtx);
-    aCtx.fillStyle = '#000000';
-    aCtx.fill();
-
-    cCtx.strokeStyle = theme.laceShadow;
-    cCtx.lineWidth = 1.2;
-    drawHole(cCtx);
-    cCtx.stroke();
-
-    // Fine picot pearl at petal tip
-    cCtx.fillStyle = theme.laceThread;
-    cCtx.beginPath();
-    cCtx.arc(pLen + 2.6, 0, 1.9, 0, Math.PI * 2);
-    cCtx.fill();
-    aCtx.fillStyle = '#ffffff';
-    aCtx.beginPath();
-    aCtx.arc(pLen + 2.6, 0, 1.9, 0, Math.PI * 2);
-    aCtx.fill();
-
-    cCtx.restore();
-    aCtx.restore();
-  }
-
-  // Inner overlapping scalloped petals
-  const innerCount = Math.max(5, outerCount - 2);
-  for (let i = 0; i < innerCount; i++) {
-    const a = ((i + 0.5) / innerCount) * Math.PI * 2;
-    cCtx.save();
-    cCtx.rotate(a);
-    aCtx.save();
-    aCtx.rotate(a);
-
-    const drawInner = (ctx) => {
-      ctx.beginPath();
-      ctx.moveTo(radius * 0.18, 0);
-      ctx.quadraticCurveTo(radius * 0.42, -radius * 0.22, radius * 0.54, 0);
-      ctx.quadraticCurveTo(radius * 0.42, radius * 0.22, radius * 0.18, 0);
-      ctx.closePath();
-    };
-    strokeCord(cCtx, aCtx, drawInner, cordW * 0.85, theme);
-
-    cCtx.restore();
-    aCtx.restore();
-  }
-
-  // Openwork center wheel with radial spokes
-  const ringR = radius * 0.22;
-  strokeCord(
-    cCtx,
-    aCtx,
-    (ctx) => {
-      ctx.beginPath();
-      ctx.arc(0, 0, ringR, 0, Math.PI * 2);
-    },
-    cordW * 0.88,
-    theme
-  );
-
-  aCtx.fillStyle = '#000000';
-  aCtx.beginPath();
-  aCtx.arc(0, 0, ringR * 0.56, 0, Math.PI * 2);
-  aCtx.fill();
-
-  for (let i = 0; i < 6; i++) {
-    const sa = (i / 6) * Math.PI * 2;
-    strokeCord(
-      cCtx,
-      aCtx,
-      (ctx) => {
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(sa) * 2.4, Math.sin(sa) * 2.4);
-        ctx.lineTo(Math.cos(sa) * ringR, Math.sin(sa) * ringR);
-      },
-      1.6,
-      theme
-    );
-  }
-  cCtx.fillStyle = theme.laceThread;
-  cCtx.beginPath();
-  cCtx.arc(0, 0, 2.8, 0, Math.PI * 2);
-  cCtx.fill();
-  aCtx.fillStyle = '#ffffff';
-  aCtx.beginPath();
-  aCtx.arc(0, 0, 2.8, 0, Math.PI * 2);
-  aCtx.fill();
-
-  cCtx.restore();
-  aCtx.restore();
-}
-
-/**
- * Draws an airy 5- or 6-petal openwork lace blossom (hollow corded loops + central vein).
- */
-function drawLaceBlossom(cCtx, aCtx, cx, cy, radius, rot, petals, theme) {
-  cCtx.save();
-  cCtx.translate(cx, cy);
-  cCtx.rotate(rot);
-  aCtx.save();
-  aCtx.translate(cx, cy);
-  aCtx.rotate(rot);
-
-  const cordW = Math.max(2.5, radius * 0.115);
-  for (let i = 0; i < petals; i++) {
-    const a = (i / petals) * Math.PI * 2;
-    cCtx.save();
-    cCtx.rotate(a);
-    aCtx.save();
-    aCtx.rotate(a);
-
-    const drawLoop = (ctx) => {
-      ctx.beginPath();
-      ctx.moveTo(radius * 0.22, 0);
-      ctx.bezierCurveTo(radius * 0.36, -radius * 0.34, radius * 0.96, -radius * 0.28, radius, 0);
-      ctx.bezierCurveTo(radius * 0.96, radius * 0.28, radius * 0.36, radius * 0.34, radius * 0.22, 0);
-      ctx.closePath();
-    };
-    strokeCord(cCtx, aCtx, drawLoop, cordW, theme);
-
-    strokeCord(
-      cCtx,
-      aCtx,
-      (ctx) => {
-        ctx.beginPath();
-        ctx.moveTo(radius * 0.28, 0);
-        ctx.lineTo(radius * 0.72, 0);
-      },
-      1.6,
-      theme
-    );
-
-    cCtx.restore();
-    aCtx.restore();
-  }
-
-  strokeCord(
-    cCtx,
-    aCtx,
-    (ctx) => {
-      ctx.beginPath();
-      ctx.arc(0, 0, radius * 0.20, 0, Math.PI * 2);
-    },
-    cordW * 0.9,
-    theme
-  );
-
-  aCtx.fillStyle = '#000000';
-  aCtx.beginPath();
-  aCtx.arc(0, 0, radius * 0.11, 0, Math.PI * 2);
-  aCtx.fill();
-
-  cCtx.restore();
-  aCtx.restore();
-}
-
-/**
- * Draws a delicate miniature 5-petal floret tucked between hero roses and blossoms.
- */
-function drawLaceFloret(cCtx, aCtx, cx, cy, radius, rot, theme) {
-  cCtx.save();
-  cCtx.translate(cx, cy);
-  cCtx.rotate(rot);
-  aCtx.save();
-  aCtx.translate(cx, cy);
-  aCtx.rotate(rot);
-
-  const petals = 5;
-  const cordW = Math.max(2.1, radius * 0.16);
-  for (let i = 0; i < petals; i++) {
-    const a = (i / petals) * Math.PI * 2;
-    cCtx.save();
-    cCtx.rotate(a);
-    aCtx.save();
-    aCtx.rotate(a);
-
-    const drawP = (ctx) => {
-      ctx.beginPath();
-      ctx.arc(radius * 0.56, 0, radius * 0.34, 0, Math.PI * 2);
-    };
-    strokeCord(cCtx, aCtx, drawP, cordW, theme);
-
-    cCtx.restore();
-    aCtx.restore();
-  }
-
-  aCtx.fillStyle = '#000000';
-  aCtx.beginPath();
-  aCtx.arc(0, 0, radius * 0.18, 0, Math.PI * 2);
-  aCtx.fill();
-
-  cCtx.restore();
-  aCtx.restore();
-}
-
-/**
- * Draws an openwork veined lace leaf along `angle`.
- */
-function drawLaceLeaf(cCtx, aCtx, cx, cy, len, angle, theme) {
-  cCtx.save();
-  cCtx.translate(cx, cy);
-  cCtx.rotate(angle);
-  aCtx.save();
-  aCtx.translate(cx, cy);
-  aCtx.rotate(angle);
-
-  const w = len * 0.36;
-  const drawLeafOutline = (ctx) => {
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(len * 0.45, -w, len, 0);
-    ctx.quadraticCurveTo(len * 0.45, w, 0, 0);
-    ctx.closePath();
-  };
-
-  strokeCord(cCtx, aCtx, drawLeafOutline, 2.6, theme);
-
-  strokeCord(
-    cCtx,
-    aCtx,
-    (ctx) => {
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(len * 0.88, 0);
-      ctx.moveTo(len * 0.32, 0);
-      ctx.lineTo(len * 0.56, -w * 0.46);
-      ctx.moveTo(len * 0.32, 0);
-      ctx.lineTo(len * 0.56, w * 0.46);
-    },
-    1.7,
-    theme
-  );
-
-  cCtx.restore();
-  aCtx.restore();
-}
-
-/**
- * Draws an organic S-scroll tendril spiral connecting floral motifs cleanly.
- */
-function drawLaceScroll(cCtx, aCtx, cx, cy, size, rot, flip, theme) {
-  cCtx.save();
-  cCtx.translate(cx, cy);
-  cCtx.rotate(rot);
-  cCtx.scale(flip ? -1 : 1, 1);
-  aCtx.save();
-  aCtx.translate(cx, cy);
-  aCtx.rotate(rot);
-  aCtx.scale(flip ? -1 : 1, 1);
-
-  strokeCord(
-    cCtx,
-    aCtx,
-    (ctx) => {
-      ctx.beginPath();
-      ctx.moveTo(-size, size * 0.25);
-      ctx.bezierCurveTo(-size * 0.4, -size * 0.78, size * 0.5, -size * 0.62, size * 0.72, 0);
-      ctx.bezierCurveTo(size * 0.85, size * 0.46, size * 0.25, size * 0.66, size * 0.18, size * 0.22);
-      ctx.bezierCurveTo(size * 0.15, 0.02, size * 0.36, -0.02, size * 0.38, size * 0.14);
-    },
-    2.4,
-    theme
-  );
-
-  strokeCord(
-    cCtx,
-    aCtx,
-    (ctx) => {
-      ctx.beginPath();
-      ctx.arc(-size * 0.42, size * 0.38, Math.max(3.8, size * 0.2), 0, Math.PI * 2);
-    },
-    2.0,
-    theme
-  );
-
-  cCtx.restore();
-  aCtx.restore();
-}
-
-/**
- * Draws refined Chantilly/guipure bridging arches with crisp open cells
- * (spacious enough so floral motifs and dark-sky/cream-letter cutouts read clearly).
- */
-function drawTulleBridges(cCtx, aCtx, w, h, theme, densityScale = 1) {
-  const stepX = Math.round(74 / densityScale);
-  const stepY = Math.round(64 / densityScale);
-
-  cCtx.save();
-  aCtx.save();
-  cCtx.strokeStyle = theme.laceFill;
-  cCtx.lineWidth = 2.0;
-  cCtx.globalAlpha = 0.82;
-  aCtx.strokeStyle = '#ffffff';
-  aCtx.lineWidth = 2.0;
-
-  for (let row = -1; row <= Math.ceil(h / stepY) + 1; row++) {
-    const y = row * stepY;
-    const xOff = (row % 2) * (stepX * 0.5);
-    for (let col = -1; col <= Math.ceil(w / stepX) + 1; col++) {
-      const x = col * stepX + xOff;
-      const drawArcs = (ctx) => {
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.quadraticCurveTo(x + stepX * 0.28, y + stepY * 0.38, x + stepX * 0.5, y + stepY);
-        ctx.moveTo(x, y);
-        ctx.quadraticCurveTo(x - stepX * 0.28, y + stepY * 0.38, x - stepX * 0.5, y + stepY);
-      };
-      drawArcs(cCtx);
-      cCtx.stroke();
-      drawArcs(aCtx);
-      aCtx.stroke();
-
-      cCtx.fillStyle = theme.laceThread;
-      cCtx.beginPath();
-      cCtx.arc(x, y, 2.0, 0, Math.PI * 2);
-      cCtx.fill();
-
-      aCtx.fillStyle = '#ffffff';
-      aCtx.beginPath();
-      aCtx.arc(x, y, 2.0, 0, Math.PI * 2);
-      aCtx.fill();
-    }
-  }
-
-  cCtx.restore();
-  aCtx.restore();
-}
-
-/**
- * Stamps a refined, delicate scalloped picot lace trim along border samples {x, y, nx, ny}.
- */
-function drawFineLaceBorder(cCtx, aCtx, samples, radius, theme) {
-  for (let i = 0; i < samples.length; i++) {
-    const { x, y, nx, ny } = samples[i];
-    const angle = Math.atan2(ny, nx);
-
-    cCtx.save();
-    cCtx.translate(x, y);
-    cCtx.rotate(angle);
-    aCtx.save();
-    aCtx.translate(x, y);
-    aCtx.rotate(angle);
-
-    const drawFan = (ctx) => {
-      ctx.beginPath();
-      ctx.arc(0, 0, radius, -Math.PI * 0.6, Math.PI * 0.6);
-      ctx.closePath();
-    };
-
-    drawFan(cCtx);
-    cCtx.fillStyle = theme.laceFill;
-    cCtx.fill();
-    drawFan(aCtx);
-    aCtx.fillStyle = '#ffffff';
-    aCtx.fill();
-
-    strokeCord(
-      cCtx,
-      aCtx,
-      (ctx) => {
-        ctx.beginPath();
-        ctx.arc(0, 0, radius, -Math.PI * 0.58, Math.PI * 0.58);
-      },
-      2.3,
-      theme
-    );
-
-    aCtx.fillStyle = '#000000';
-    aCtx.beginPath();
-    aCtx.arc(radius * 0.34, 0, radius * 0.28, 0, Math.PI * 2);
-    aCtx.fill();
-
-    cCtx.strokeStyle = theme.laceShadow;
-    cCtx.lineWidth = 1.1;
-    cCtx.beginPath();
-    cCtx.arc(radius * 0.34, 0, radius * 0.29, 0, Math.PI * 2);
-    cCtx.stroke();
-
-    const px = radius + 2.0;
-    cCtx.fillStyle = theme.laceThread;
-    cCtx.beginPath();
-    cCtx.arc(px, 0, 1.7, 0, Math.PI * 2);
-    cCtx.fill();
-    aCtx.fillStyle = '#ffffff';
-    aCtx.beginPath();
-    aCtx.arc(px, 0, 1.7, 0, Math.PI * 2);
-    aCtx.fill();
-
-    cCtx.restore();
-    aCtx.restore();
-  }
-}
-
-/**
- * Fills a clipped canvas region with balanced, legible guipure floral openwork lace.
- */
-function paintFloralTapestry(cCtx, aCtx, w, h, theme, seed, density = 1.0) {
-  const rng = createRng(seed);
-
-  // 1. Spacious connecting Chantilly lattice bridges
-  drawTulleBridges(cCtx, aCtx, w, h, theme, density);
-
-  // 2. Flowing botanical S-curve vines weaving organically across the panel
-  const vineRows = Math.max(4, Math.round(h / 180));
-  for (let r = 0; r < vineRows; r++) {
-    const yBase = (r + 0.5) * (h / vineRows);
-    strokeCord(
-      cCtx,
-      aCtx,
-      (ctx) => {
-        ctx.beginPath();
-        ctx.moveTo(-16, yBase);
-        ctx.bezierCurveTo(w * 0.25, yBase - 72, w * 0.48, yBase + 72, w * 0.72, yBase - 46);
-        ctx.bezierCurveTo(w * 0.85, yBase - 90, w * 0.95, yBase + 36, w + 16, yBase - 12);
-      },
-      2.8,
-      theme
-    );
-  }
-
-  // 3. Balanced multi-scale floral motifs with clean negative-space cutouts
-  const cellX = 136 / density;
-  const cellY = 124 / density;
-  const cols = Math.ceil(w / cellX) + 1;
-  const rows = Math.ceil(h / cellY) + 1;
-
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const jitterX = (rng() - 0.5) * cellX * 0.36;
-      const jitterY = (rng() - 0.5) * cellY * 0.36;
-      const cx = (c + (r % 2) * 0.5) * cellX + jitterX;
-      const cy = r * cellY + jitterY;
-
-      const roseR = 30 + rng() * 12;
-      const rot = rng() * Math.PI * 2;
-      const petals = rng() > 0.42 ? 8 : 7;
-
-      const leafCount = 3;
-      for (let l = 0; l < leafCount; l++) {
-        const la = rot + (l / leafCount) * Math.PI * 2 + (rng() - 0.5) * 0.45;
-        const lx = cx + Math.cos(la) * (roseR * 0.80);
-        const ly = cy + Math.sin(la) * (roseR * 0.80);
-        drawLaceLeaf(cCtx, aCtx, lx, ly, 26 + rng() * 12, la + (rng() - 0.5) * 0.4, theme);
-      }
-
-      drawLaceRose(cCtx, aCtx, cx, cy, roseR, rot, petals, theme);
-
-      const bx = cx + cellX * 0.48 + (rng() - 0.5) * 20;
-      const by = cy + cellY * 0.46 + (rng() - 0.5) * 18;
-      drawLaceBlossom(cCtx, aCtx, bx, by, 19 + rng() * 7, rng() * Math.PI * 2, rng() > 0.4 ? 5 : 6, theme);
-
-      const fx = cx - cellX * 0.34 + (rng() - 0.5) * 16;
-      const fy = cy + cellY * 0.36 + (rng() - 0.5) * 16;
-      drawLaceFloret(cCtx, aCtx, fx, fy, 11 + rng() * 4, rng() * Math.PI * 2, theme);
-
-      drawLaceScroll(
-        cCtx,
-        aCtx,
-        cx + cellX * 0.26,
-        cy - cellY * 0.30,
-        18 + rng() * 6,
-        rng() * Math.PI * 2,
-        rng() > 0.5,
-        theme
-      );
+// Source crop rectangles in /assets/images/cover.png (970x1260) and /assets/images/opened.png (995x1260)
+const COVER_SRC = {
+  bodyX: 73,
+  bodyY: 492,
+  bodyW: 828,
+  bodyH: 650,
+  flapH: 415,
+};
+
+const OPENED_SRC = {
+  bodyX: 37,
+  hingeY: 510,
+  bodyW: 864,
+  bodyH: 604,
+  flapY: 114,
+  flapH: 396,
+  cardX: 127,
+  cardY: 348,
+  cardW: 678,
+  cardH: 448,
+};
+
+const imageCache = {
+  cover: null,
+  opened: null,
+  coverUrl: './assets/images/cover.png',
+  openedUrl: './assets/images/opened.png',
+  loadingStarted: false,
+  listeners: new Set(),
+};
+
+function notifyImageListeners() {
+  for (const fn of imageCache.listeners) {
+    try {
+      fn();
+    } catch (err) {
+      console.warn('EnvelopeMesh texture refresh listener failed:', err);
     }
   }
 }
 
-/**
- * Generates full-body floral openwork lace textures for the Back Panel.
- */
-function createBackLaceTextures(theme) {
-  const w = 1024;
-  const h = 896;
-  const colorCanvas = document.createElement('canvas');
-  colorCanvas.width = w;
-  colorCanvas.height = h;
-  const cCtx = colorCanvas.getContext('2d');
-
-  const alphaCanvas = document.createElement('canvas');
-  alphaCanvas.width = w;
-  alphaCanvas.height = h;
-  const aCtx = alphaCanvas.getContext('2d');
-
-  aCtx.fillStyle = '#000000';
-  aCtx.fillRect(0, 0, w, h);
-
-  const margin = 10;
-  const clipRect = (ctx) => {
-    ctx.beginPath();
-    ctx.roundRect(margin, margin, w - margin * 2, h - margin * 2, 14);
-  };
-
-  cCtx.save();
-  aCtx.save();
-  clipRect(cCtx);
-  cCtx.clip();
-  clipRect(aCtx);
-  aCtx.clip();
-
-  paintFloralTapestry(cCtx, aCtx, w, h, { ...theme, laceThread: theme.backTint }, 4242, 0.92);
-
-  cCtx.restore();
-  aCtx.restore();
-
-  // Seamless top hinge corded edge so open flap meets back wall with zero slit
-  strokeCord(
-    cCtx,
-    aCtx,
-    (ctx) => {
-      ctx.beginPath();
-      ctx.moveTo(margin, margin + 2);
-      ctx.lineTo(w - margin, margin + 2);
-    },
-    3.6,
-    { ...theme, laceThread: theme.backTint }
-  );
-
-  // Fine lace edging along left, right, and bottom
-  const samples = [];
-  const step = 18;
-  for (let x = margin + 10; x <= w - margin - 10; x += step) {
-    samples.push({ x, y: h - margin, nx: 0, ny: 1 });
+function isOriginCleanImage(img) {
+  if (typeof document === 'undefined') return true;
+  try {
+    const testCanvas = document.createElement('canvas');
+    testCanvas.width = 1;
+    testCanvas.height = 1;
+    const tCtx = testCanvas.getContext('2d');
+    tCtx.drawImage(img, 0, 0, 1, 1);
+    tCtx.getImageData(0, 0, 1, 1);
+    return true;
+  } catch {
+    return false;
   }
-  for (let y = margin + 14; y <= h - margin - 10; y += step) {
-    samples.push({ x: margin, y, nx: -1, ny: 0 });
-    samples.push({ x: w - margin, y, nx: 1, ny: 0 });
-  }
-  drawFineLaceBorder(cCtx, aCtx, samples, 7.8, { ...theme, laceThread: theme.backTint });
-
-  const map = new THREE.CanvasTexture(colorCanvas);
-  map.colorSpace = THREE.SRGBColorSpace;
-  map.anisotropy = 8;
-  const alphaMap = new THREE.CanvasTexture(alphaCanvas);
-  alphaMap.anisotropy = 8;
-  return { map, alphaMap };
 }
 
-/**
- * Generates full-body floral openwork lace textures for the Front Pocket
- * (gentle concave envelope dip at top rim + fine lace border so cream letters glow through).
- */
-function createFrontPocketLaceTextures(theme) {
-  const w = 1024;
-  const h = 896;
-  const colorCanvas = document.createElement('canvas');
-  colorCanvas.width = w;
-  colorCanvas.height = h;
-  const cCtx = colorCanvas.getContext('2d');
-
-  const alphaCanvas = document.createElement('canvas');
-  alphaCanvas.width = w;
-  alphaCanvas.height = h;
-  const aCtx = alphaCanvas.getContext('2d');
-
-  aCtx.fillStyle = '#000000';
-  aCtx.fillRect(0, 0, w, h);
-
-  const margin = 10;
-  const yRimEdge = 40;
-  const yRimCtrl = 152;
-
-  const tracePocket = (ctx) => {
-    ctx.beginPath();
-    ctx.moveTo(margin, yRimEdge);
-    ctx.quadraticCurveTo(w * 0.5, yRimCtrl, w - margin, yRimEdge);
-    ctx.lineTo(w - margin, h - margin - 12);
-    ctx.quadraticCurveTo(w - margin, h - margin, w - margin - 12, h - margin);
-    ctx.lineTo(margin + 12, h - margin);
-    ctx.quadraticCurveTo(margin, h - margin, margin, h - margin - 12);
-    ctx.closePath();
-  };
-
-  cCtx.save();
-  aCtx.save();
-  tracePocket(cCtx);
-  cCtx.clip();
-  tracePocket(aCtx);
-  aCtx.clip();
-
-  paintFloralTapestry(cCtx, aCtx, w, h, theme, 9001, 1.04);
-
-  cCtx.restore();
-  aCtx.restore();
-
-  // Delicate corded structural trim along the gentle pocket V-dip
-  strokeCord(
-    cCtx,
-    aCtx,
-    (ctx) => {
-      ctx.beginPath();
-      ctx.moveTo(margin, yRimEdge);
-      ctx.quadraticCurveTo(w * 0.5, yRimCtrl, w - margin, yRimEdge);
-    },
-    4.0,
-    theme
-  );
-
-  // Fine miniature picot scallops along rim, sides, and bottom
-  const rimSamples = [];
-  const rimSteps = 52;
-  for (let i = 1; i < rimSteps; i++) {
-    const t = i / rimSteps;
-    const x = margin + t * (w - margin * 2);
-    const y = (1 - t) * (1 - t) * yRimEdge + 2 * (1 - t) * t * yRimCtrl + t * t * yRimEdge;
-    const dy = 2 * (1 - t) * (yRimCtrl - yRimEdge) + 2 * t * (yRimEdge - yRimCtrl);
-    const dx = w - margin * 2;
-    const len = Math.hypot(dx, dy);
-    rimSamples.push({ x, y, nx: dy / len, ny: -dx / len });
+function loadEnvelopeAsset(url, key) {
+  if (typeof Image === 'undefined' || !url) return;
+  const img = new Image();
+  if (!url.startsWith('data:')) {
+    img.crossOrigin = 'anonymous';
   }
-  drawFineLaceBorder(cCtx, aCtx, rimSamples, 5.6, theme);
-
-  const outerSamples = [];
-  const sideStep = 18;
-  for (let y = yRimEdge + 10; y <= h - margin - 10; y += sideStep) {
-    outerSamples.push({ x: margin, y, nx: -1, ny: 0 });
-    outerSamples.push({ x: w - margin, y, nx: 1, ny: 0 });
-  }
-  for (let x = margin + 10; x <= w - margin - 10; x += sideStep) {
-    outerSamples.push({ x, y: h - margin, nx: 0, ny: 1 });
-  }
-  drawFineLaceBorder(cCtx, aCtx, outerSamples, 7.8, theme);
-
-  const map = new THREE.CanvasTexture(colorCanvas);
-  map.colorSpace = THREE.SRGBColorSpace;
-  map.anisotropy = 8;
-  const alphaMap = new THREE.CanvasTexture(alphaCanvas);
-  alphaMap.anisotropy = 8;
-  return { map, alphaMap };
-}
-
-/**
- * Generates full-body floral openwork lace textures for the Triangular Flap
- * (classic tapered envelope triangle with softly rounded apex, matching the reference video).
- */
-function createLaceFlapTextures(theme) {
-  const w = 1024;
-  const h = 640;
-  const colorCanvas = document.createElement('canvas');
-  colorCanvas.width = w;
-  colorCanvas.height = h;
-  const cCtx = colorCanvas.getContext('2d');
-
-  const alphaCanvas = document.createElement('canvas');
-  alphaCanvas.width = w;
-  alphaCanvas.height = h;
-  const aCtx = alphaCanvas.getContext('2d');
-
-  aCtx.fillStyle = '#000000';
-  aCtx.fillRect(0, 0, w, h);
-
-  const marginX = 10;
-  const tipX = w * 0.5;
-  const tipY = h - 36;
-  const ctrlLeftX = (marginX + (tipX - 38)) * 0.5 - 12;
-  const ctrlRightX = (w - marginX + (tipX + 38)) * 0.5 + 12;
-  const ctrlY = tipY * 0.52;
-
-  const traceFlap = (ctx) => {
-    ctx.beginPath();
-    ctx.moveTo(marginX, 2);
-    ctx.lineTo(w - marginX, 2);
-    ctx.quadraticCurveTo(ctrlRightX, ctrlY, tipX + 38, tipY - 14);
-    ctx.quadraticCurveTo(tipX, tipY + 14, tipX - 38, tipY - 14);
-    ctx.quadraticCurveTo(ctrlLeftX, ctrlY, marginX, 2);
-    ctx.closePath();
-  };
-
-  cCtx.save();
-  aCtx.save();
-  traceFlap(cCtx);
-  cCtx.clip();
-  traceFlap(aCtx);
-  aCtx.clip();
-
-  paintFloralTapestry(cCtx, aCtx, w, h, theme, 2026, 1.08);
-
-  // Focal lace rose medallion near the flap apex
-  drawLaceRose(cCtx, aCtx, tipX, tipY - 76, 38, 0.25, 8, theme);
-
-  cCtx.restore();
-  aCtx.restore();
-
-  const samples = [];
-  const sampleQuadratic = (p0, p1, p2, steps, outSign) => {
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const omt = 1 - t;
-      const x = omt * omt * p0.x + 2 * omt * t * p1.x + t * t * p2.x;
-      const y = omt * omt * p0.y + 2 * omt * t * p1.y + t * t * p2.y;
-      const dx = 2 * omt * (p1.x - p0.x) + 2 * t * (p2.x - p1.x);
-      const dy = 2 * omt * (p1.y - p0.y) + 2 * t * (p2.y - p1.y);
-      const len = Math.hypot(dx, dy) || 1;
-      samples.push({ x, y, nx: (outSign * dy) / len, ny: (-outSign * dx) / len });
+  img.onload = () => {
+    if (isOriginCleanImage(img)) {
+      imageCache[key] = img;
+      notifyImageListeners();
     }
   };
-
-  sampleQuadratic(
-    { x: marginX, y: 4 },
-    { x: ctrlLeftX, y: ctrlY },
-    { x: tipX - 38, y: tipY - 14 },
-    34,
-    -1
-  );
-  sampleQuadratic(
-    { x: tipX - 38, y: tipY - 14 },
-    { x: tipX, y: tipY + 14 },
-    { x: tipX + 38, y: tipY - 14 },
-    7,
-    -1
-  );
-  sampleQuadratic(
-    { x: tipX + 38, y: tipY - 14 },
-    { x: ctrlRightX, y: ctrlY },
-    { x: w - marginX, y: 4 },
-    34,
-    -1
-  );
-
-  strokeCord(
-    cCtx,
-    aCtx,
-    (ctx) => {
-      ctx.beginPath();
-      ctx.moveTo(marginX, 3);
-      ctx.lineTo(w - marginX, 3);
-    },
-    3.8,
-    theme
-  );
-
-  strokeCord(
-    cCtx,
-    aCtx,
-    (ctx) => {
-      ctx.beginPath();
-      ctx.moveTo(marginX, 4);
-      ctx.quadraticCurveTo(ctrlLeftX, ctrlY, tipX - 38, tipY - 14);
-      ctx.quadraticCurveTo(tipX, tipY + 14, tipX + 38, tipY - 14);
-      ctx.quadraticCurveTo(ctrlRightX, ctrlY, w - marginX, 4);
-    },
-    3.8,
-    theme
-  );
-
-  drawFineLaceBorder(cCtx, aCtx, samples, 7.6, theme);
-
-  const map = new THREE.CanvasTexture(colorCanvas);
-  map.colorSpace = THREE.SRGBColorSpace;
-  map.anisotropy = 8;
-  const alphaMap = new THREE.CanvasTexture(alphaCanvas);
-  alphaMap.anisotropy = 8;
-  return { map, alphaMap };
+  img.onerror = () => {};
+  img.src = url;
 }
 
-/**
- * Generates a narrow lace gusset strip texture so 3D spin edges stay delicate.
- */
-function createSideLaceTextures(theme) {
-  const w = 128;
-  const h = 896;
-  const colorCanvas = document.createElement('canvas');
-  colorCanvas.width = w;
-  colorCanvas.height = h;
-  const cCtx = colorCanvas.getContext('2d');
-
-  const alphaCanvas = document.createElement('canvas');
-  alphaCanvas.width = w;
-  alphaCanvas.height = h;
-  const aCtx = alphaCanvas.getContext('2d');
-
-  aCtx.fillStyle = '#000000';
-  aCtx.fillRect(0, 0, w, h);
-
-  drawTulleBridges(cCtx, aCtx, w, h, { ...theme, laceThread: theme.backTint }, 1.2);
-  for (let y = 44; y < h - 40; y += 84) {
-    drawLaceBlossom(cCtx, aCtx, w * 0.5, y, 24, y * 0.05, 5, { ...theme, laceThread: theme.backTint });
+function ensureEnvelopeImagesLoaded() {
+  if (imageCache.loadingStarted || typeof Image === 'undefined') {
+    return;
   }
-
-  const map = new THREE.CanvasTexture(colorCanvas);
-  map.colorSpace = THREE.SRGBColorSpace;
-  const alphaMap = new THREE.CanvasTexture(alphaCanvas);
-  return { map, alphaMap };
+  imageCache.loadingStarted = true;
+  loadEnvelopeAsset(imageCache.coverUrl, 'cover');
+  loadEnvelopeAsset(imageCache.openedUrl, 'opened');
 }
 
 /**
- * Generates a warm antique-cream stationery card texture for the inner stack
- * softly visible through the front floral lace cutouts in idle preview.
+ * Draws the "YOUTH 罗马东区青年团契" emblem (house + olive branch + cross) matching cover.png & opened.png.
  */
-function createLetterSheetTexture(theme, variant = 0) {
-  const w = 512;
-  const h = 704;
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d');
+function drawYouthLogo(ctx, cx, cy, scale = 1, ink = '#1b4978') {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
+  ctx.strokeStyle = ink;
+  ctx.fillStyle = ink;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
 
-  const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, theme.letterPaper);
-  grad.addColorStop(1, theme.letterPaperEdge);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, w, h);
-
-  ctx.strokeStyle = 'rgba(172, 150, 118, 0.28)';
-  ctx.lineWidth = 2.5;
-  ctx.strokeRect(20, 20, w - 40, h - 40);
-
-  ctx.strokeStyle = 'rgba(172, 150, 118, 0.16)';
-  ctx.lineWidth = 1.2;
-  ctx.strokeRect(30, 30, w - 60, h - 60);
-
-  // Subtle four-point star emblem near top header
-  ctx.fillStyle = 'rgba(164, 138, 98, 0.34)';
-  const cx = w * 0.5;
-  const cy = 96;
-  const r = 10;
+  // Roof & house walls
+  ctx.lineWidth = 4.2;
   ctx.beginPath();
-  ctx.moveTo(cx, cy - r);
-  ctx.quadraticCurveTo(cx, cy, cx + r, cy);
-  ctx.quadraticCurveTo(cx, cy, cx, cy + r);
-  ctx.quadraticCurveTo(cx, cy, cx - r, cy);
-  ctx.quadraticCurveTo(cx, cy, cx, cy - r);
-  ctx.closePath();
-  ctx.fill();
+  ctx.moveTo(-42, -4);
+  ctx.lineTo(-2, -42);
+  ctx.lineTo(38, -4);
+  ctx.stroke();
 
-  ctx.fillStyle = theme.letterInk;
-  const rng = createRng(700 + variant * 97);
-  for (let row = 0; row < 9; row++) {
-    const y = 160 + row * 40;
-    const lineW = row === 8 ? 140 + rng() * 100 : 280 + rng() * 64;
-    ctx.fillRect((w - lineW) * 0.5, y, lineW, 2.5);
+  ctx.lineWidth = 3.6;
+  ctx.beginPath();
+  ctx.moveTo(-34, -8);
+  ctx.lineTo(-34, 14);
+  ctx.moveTo(32, -8);
+  ctx.lineTo(32, 14);
+  ctx.stroke();
+
+  // Diagonal cross & olive stem sweeping from bottom-left to top-right
+  ctx.lineWidth = 4.2;
+  ctx.beginPath();
+  ctx.moveTo(-26, 12);
+  ctx.quadraticCurveTo(2, -12, 24, -52);
+  ctx.stroke();
+
+  // Cross bar near top-right of roof
+  ctx.lineWidth = 3.8;
+  ctx.beginPath();
+  ctx.moveTo(10, -42);
+  ctx.lineTo(30, -24);
+  ctx.stroke();
+
+  // Olive leaves along the stem
+  const leaves = [
+    { x: -16, y: -2, a: -0.9, rx: 7.5, ry: 3.3 },
+    { x: -4, y: -14, a: -0.8, rx: 8.0, ry: 3.4 },
+    { x: 8, y: -25, a: -0.7, rx: 7.5, ry: 3.2 },
+    { x: -6, y: -2, a: 0.25, rx: 7.5, ry: 3.2 },
+    { x: 6, y: -12, a: 0.3, rx: 7.5, ry: 3.2 },
+  ];
+  for (const lf of leaves) {
+    ctx.save();
+    ctx.translate(lf.x, lf.y);
+    ctx.rotate(lf.a);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, lf.rx, lf.ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
+  // "YOUTH" bold italic sans-serif
+  ctx.font = 'italic 900 26px "Arial Black", "Helvetica Neue", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('YOUTH', -1, 39);
+
+  // Small ribbon tail at bottom-left of YOUTH
+  ctx.lineWidth = 3.8;
+  ctx.beginPath();
+  ctx.moveTo(-37, 43);
+  ctx.quadraticCurveTo(-41, 51, -37, 57);
+  ctx.stroke();
+
+  // Subtitle "罗马东区青年团契"
+  ctx.font = 'bold 8.5px "PingFang SC", "Microsoft YaHei", sans-serif';
+  ctx.fillText('罗马东区青年团契', 10, 49);
+
+  ctx.restore();
+}
+
+/**
+ * Draws the "From: ? / To: You" calligraphy script on the closed top flap matching cover.png.
+ */
+function drawCoverCalligraphy(ctx, cx, cy, scale = 1, ink = '#1b4978') {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = ink;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'italic 68px "Snell Roundhand", "Brush Script MT", "Lucida Handwriting", "Georgia", serif';
+  ctx.fillText('From : ?', -12, -46);
+  ctx.fillText('To : You', 10, 44);
+  ctx.restore();
+}
+
+/**
+ * Traces the closed top flap silhouette in normalized [0..w, 0..h] coordinates matching cover.png.
+ */
+function traceClosedFlapShape(ctx, w, h, margin = 8) {
+  ctx.beginPath();
+  ctx.moveTo(margin, 2);
+  ctx.lineTo(w - margin, 2);
+  ctx.quadraticCurveTo(w - margin - 2, h * 0.125, w * 0.952, h * 0.212);
+  ctx.lineTo(w * 0.556, h * 0.938);
+  ctx.quadraticCurveTo(w * 0.495, h * 1.032, w * 0.435, h * 0.942);
+  ctx.lineTo(w * 0.048, h * 0.218);
+  ctx.quadraticCurveTo(margin + 2, h * 0.132, margin, 2);
+  ctx.closePath();
+}
+
+/**
+ * Traces the opened top flap silhouette in normalized [0..w, 0..h] coordinates matching opened.png
+ * (hinge at y = h, rounded apex at y = h * 0.015).
+ */
+function traceOpenedFlapShape(ctx, w, h, margin = 8) {
+  ctx.beginPath();
+  ctx.moveTo(margin, h - 2);
+  ctx.quadraticCurveTo(margin + 4, h * 0.84, w * 0.052, h * 0.735);
+  ctx.lineTo(w * 0.422, h * 0.048);
+  ctx.quadraticCurveTo(w * 0.485, -h * 0.015, w * 0.548, h * 0.055);
+  ctx.lineTo(w * 0.948, h * 0.785);
+  ctx.quadraticCurveTo(w - margin - 4, h * 0.89, w - margin, h - 2);
+  ctx.closePath();
+}
+
+/**
+ * Traces the front pocket silhouette with the upper trapezoidal V-opening cut out matching opened.png.
+ */
+function traceFrontPocketShape(ctx, w, h, margin = 8) {
+  const rimY = h * 0.475;
+  const rCorner = 12;
+  ctx.beginPath();
+  ctx.moveTo(margin, 4);
+  ctx.lineTo(w * 0.338, rimY - 12);
+  ctx.quadraticCurveTo(w * 0.364, rimY + 2, w * 0.392, rimY + 2);
+  ctx.lineTo(w * 0.618, rimY + 2);
+  ctx.quadraticCurveTo(w * 0.646, rimY + 2, w * 0.672, rimY - 12);
+  ctx.lineTo(w - margin, 4);
+  ctx.lineTo(w - margin, h - margin - rCorner);
+  ctx.quadraticCurveTo(w - margin, h - margin, w - margin - rCorner, h - margin);
+  ctx.lineTo(margin + rCorner, h - margin);
+  ctx.quadraticCurveTo(margin, h - margin, margin, h - margin - rCorner);
+  ctx.closePath();
+}
+
+/**
+ * Renders the full closed envelope texture (cover.png) onto cCtx & aCtx.
+ */
+function paintClosedCoverCanvases(cCtx, aCtx, w, h, theme, coverImg) {
+  const margin = 8;
+  cCtx.clearRect(0, 0, w, h);
+  aCtx.fillStyle = '#000000';
+  aCtx.fillRect(0, 0, w, h);
+
+  const traceBody = (ctx) => {
+    ctx.beginPath();
+    ctx.roundRect(margin, margin, w - margin * 2, h - margin * 2, 10);
+  };
+
+  aCtx.save();
+  traceBody(aCtx);
+  aCtx.fillStyle = '#ffffff';
+  aCtx.fill();
+  aCtx.restore();
+
+  cCtx.save();
+  traceBody(cCtx);
+  cCtx.clip();
+
+  if (coverImg) {
+    cCtx.drawImage(
+      coverImg,
+      COVER_SRC.bodyX,
+      COVER_SRC.bodyY,
+      COVER_SRC.bodyW,
+      COVER_SRC.bodyH,
+      margin,
+      margin,
+      w - margin * 2,
+      h - margin * 2
+    );
+  } else {
+    const grad = cCtx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#f7f7f9');
+    grad.addColorStop(0.5, '#f2f2f5');
+    grad.addColorStop(1, '#eaeaf0');
+    cCtx.fillStyle = grad;
+    cCtx.fillRect(0, 0, w, h);
+
+    cCtx.strokeStyle = 'rgba(205, 206, 212, 0.85)';
+    cCtx.lineWidth = 3.2;
+    cCtx.beginPath();
+    cCtx.moveTo(margin, h - margin - 40);
+    cCtx.lineTo(w * 0.38, h * 0.475);
+    cCtx.moveTo(w - margin, h - margin - 40);
+    cCtx.lineTo(w * 0.62, h * 0.475);
+    cCtx.stroke();
+
+    const flapH = h * (COVER_SRC.flapH / COVER_SRC.bodyH);
+    cCtx.save();
+    cCtx.shadowColor = 'rgba(60, 64, 74, 0.24)';
+    cCtx.shadowBlur = 14;
+    cCtx.shadowOffsetY = 6;
+    traceClosedFlapShape(cCtx, w, flapH, margin);
+    cCtx.fillStyle = '#f8f8fa';
+    cCtx.fill();
+    cCtx.restore();
+
+    drawCoverCalligraphy(cCtx, w * 0.485, flapH * 0.38, 1.0, theme.inkColor);
+    drawYouthLogo(cCtx, w * 0.49, h * 0.855, 1.05, theme.inkColor);
+  }
+
+  cCtx.restore();
+}
+
+/**
+ * Renders the outer face of the top flap (from cover.png) onto cCtx & aCtx.
+ */
+function paintOuterFlapCanvases(cCtx, aCtx, w, h, theme, coverImg) {
+  const margin = 8;
+  cCtx.clearRect(0, 0, w, h);
+  aCtx.fillStyle = '#000000';
+  aCtx.fillRect(0, 0, w, h);
+
+  aCtx.save();
+  traceClosedFlapShape(aCtx, w, h * 0.96, margin);
+  aCtx.fillStyle = '#ffffff';
+  aCtx.fill();
+  aCtx.restore();
+
+  cCtx.save();
+  traceClosedFlapShape(cCtx, w, h * 0.96, margin);
+  cCtx.clip();
+
+  if (coverImg) {
+    cCtx.drawImage(
+      coverImg,
+      COVER_SRC.bodyX,
+      COVER_SRC.bodyY,
+      COVER_SRC.bodyW,
+      COVER_SRC.flapH,
+      margin,
+      0,
+      w - margin * 2,
+      h * 0.965
+    );
+  } else {
+    const grad = cCtx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#f9f9fb');
+    grad.addColorStop(1, '#f0f0f4');
+    cCtx.fillStyle = grad;
+    cCtx.fillRect(0, 0, w, h);
+    drawCoverCalligraphy(cCtx, w * 0.485, h * 0.37, 1.0, theme.inkColor);
+  }
+
+  cCtx.strokeStyle = '#e5e6ec';
+  cCtx.lineWidth = 3.0;
+  traceClosedFlapShape(cCtx, w, h * 0.96, margin);
+  cCtx.stroke();
+  cCtx.restore();
+}
+
+/**
+ * Renders the inner face of the top flap (dusty slate-blue lining from opened.png) onto cCtx & aCtx.
+ */
+function paintInnerFlapCanvases(cCtx, aCtx, w, h, theme, openedImg) {
+  const margin = 8;
+  cCtx.clearRect(0, 0, w, h);
+  aCtx.fillStyle = '#000000';
+  aCtx.fillRect(0, 0, w, h);
+
+  aCtx.save();
+  traceOpenedFlapShape(aCtx, w, h, margin);
+  aCtx.fillStyle = '#ffffff';
+  aCtx.fill();
+  aCtx.restore();
+
+  cCtx.save();
+  traceOpenedFlapShape(cCtx, w, h, margin);
+  cCtx.clip();
+
+  if (openedImg) {
+    cCtx.drawImage(
+      openedImg,
+      OPENED_SRC.bodyX,
+      OPENED_SRC.flapY,
+      OPENED_SRC.bodyW,
+      OPENED_SRC.flapH,
+      margin,
+      0,
+      w - margin * 2,
+      h
+    );
+
+    // Seamless dusty-blue continuation over the lower center where the white card overlaps in opened.png
+    const patchX = w * 0.085;
+    const patchY = h * 0.56;
+    const patchW = w * 0.83;
+    const patchH = h - patchY;
+    const linerGrad = cCtx.createLinearGradient(0, patchY - 24, 0, h);
+    linerGrad.addColorStop(0, 'rgba(147, 170, 190, 0.0)');
+    linerGrad.addColorStop(0.18, 'rgb(142, 165, 185)');
+    linerGrad.addColorStop(0.88, 'rgb(132, 156, 176)');
+    linerGrad.addColorStop(1.0, 'rgb(154, 176, 195)');
+    cCtx.fillStyle = linerGrad;
+    cCtx.fillRect(patchX, patchY - 24, patchW, patchH + 24);
+  } else {
+    const grad = cCtx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, theme.linerTop);
+    grad.addColorStop(0.55, theme.linerMid);
+    grad.addColorStop(1, theme.linerBottom);
+    cCtx.fillStyle = grad;
+    cCtx.fillRect(0, 0, w, h);
+  }
+
+  cCtx.strokeStyle = '#eef2f8';
+  cCtx.lineWidth = 6.5;
+  traceOpenedFlapShape(cCtx, w, h, margin);
+  cCtx.stroke();
+  cCtx.restore();
+}
+
+/**
+ * Renders the interior back wall of the envelope body (dusty slate-blue lining from opened.png).
+ */
+function paintBackWallCanvases(cCtx, aCtx, w, h) {
+  const margin = 8;
+  cCtx.clearRect(0, 0, w, h);
+  aCtx.fillStyle = '#000000';
+  aCtx.fillRect(0, 0, w, h);
+
+  const traceRect = (ctx) => {
+    ctx.beginPath();
+    ctx.roundRect(margin, margin, w - margin * 2, h - margin * 2, 10);
+  };
+
+  aCtx.save();
+  traceRect(aCtx);
+  aCtx.fillStyle = '#ffffff';
+  aCtx.fill();
+  aCtx.restore();
+
+  cCtx.save();
+  traceRect(cCtx);
+  cCtx.clip();
+
+  const grad = cCtx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, '#9cb3c6');
+  grad.addColorStop(0.03, '#88a1b6');
+  grad.addColorStop(0.35, '#839cb2');
+  grad.addColorStop(1, '#738ca3');
+  cCtx.fillStyle = grad;
+  cCtx.fillRect(0, 0, w, h);
+
+  cCtx.fillStyle = 'rgba(182, 199, 214, 0.55)';
+  cCtx.fillRect(margin, margin, w - margin * 2, 5);
+  cCtx.fillStyle = 'rgba(95, 118, 138, 0.38)';
+  cCtx.fillRect(margin, margin + 5, w - margin * 2, 4);
+
+  cCtx.strokeStyle = '#eef2f7';
+  cCtx.lineWidth = 6;
+  traceRect(cCtx);
+  cCtx.stroke();
+
+  cCtx.restore();
+}
+
+/**
+ * Renders the front white pocket (left/right diagonal flaps + bottom flap with YOUTH logo from opened.png)
+ * with the upper V-opening cut out cleanly in alphaCanvas.
+ */
+function paintFrontPocketCanvases(cCtx, aCtx, w, h, theme, openedImg, coverImg) {
+  const margin = 8;
+  cCtx.clearRect(0, 0, w, h);
+  aCtx.fillStyle = '#000000';
+  aCtx.fillRect(0, 0, w, h);
+
+  aCtx.save();
+  traceFrontPocketShape(aCtx, w, h, margin);
+  aCtx.fillStyle = '#ffffff';
+  aCtx.fill();
+  aCtx.restore();
+
+  cCtx.save();
+  traceFrontPocketShape(cCtx, w, h, margin);
+  cCtx.clip();
+
+  if (openedImg) {
+    cCtx.drawImage(
+      openedImg,
+      OPENED_SRC.bodyX,
+      OPENED_SRC.hingeY,
+      OPENED_SRC.bodyW,
+      OPENED_SRC.bodyH,
+      margin,
+      0,
+      w - margin * 2,
+      h - margin
+    );
+  } else if (coverImg) {
+    cCtx.drawImage(
+      coverImg,
+      COVER_SRC.bodyX,
+      COVER_SRC.bodyY,
+      COVER_SRC.bodyW,
+      COVER_SRC.bodyH,
+      margin,
+      0,
+      w - margin * 2,
+      h - margin
+    );
+  } else {
+    const grad = cCtx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#f7f7fa');
+    grad.addColorStop(1, '#ececf1');
+    cCtx.fillStyle = grad;
+    cCtx.fillRect(0, 0, w, h);
+
+    const rimY = h * 0.475;
+    cCtx.strokeStyle = 'rgba(208, 209, 215, 0.9)';
+    cCtx.lineWidth = 3.2;
+    cCtx.beginPath();
+    cCtx.moveTo(margin, h - margin - 36);
+    cCtx.lineTo(w * 0.36, rimY);
+    cCtx.moveTo(w - margin, h - margin - 36);
+    cCtx.lineTo(w * 0.64, rimY);
+    cCtx.stroke();
+
+    drawYouthLogo(cCtx, w * 0.49, h * 0.84, 1.05, theme.inkColor);
+  }
+
+  cCtx.strokeStyle = 'rgba(255, 255, 255, 0.92)';
+  cCtx.lineWidth = 2.8;
+  traceFrontPocketShape(cCtx, w, h, margin);
+  cCtx.stroke();
+
+  cCtx.restore();
+}
+
+/**
+ * Renders the waiting card face edge-to-edge (zero margin inset) using the exact same
+ * paper gradient and border as CardTextureGenerator so the waiting card and extracted
+ * OrigamiCard match 1:1 in size and color.
+ */
+function paintWaitingCardCanvases(cCtx, aCtx, w, h) {
+  cCtx.clearRect(0, 0, w, h);
+  aCtx.fillStyle = '#ffffff';
+  aCtx.fillRect(0, 0, w, h);
+
+  const grad = cCtx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, '#f6f6fa');
+  grad.addColorStop(1, '#eeeef3');
+  cCtx.fillStyle = grad;
+  cCtx.fillRect(0, 0, w, h);
+
+  // Subtle paper fiber grain matching CardTextureGenerator
+  cCtx.save();
+  cCtx.globalAlpha = 0.018;
+  for (let i = 0; i < 400; i++) {
+    const x = (((i * 7919) % 1000) / 1000) * w;
+    const y = (((i * 6271) % 1000) / 1000) * h;
+    cCtx.fillStyle = i % 2 === 0 ? '#6e7688' : '#ffffff';
+    cCtx.fillRect(x, y, 2, 2);
+  }
+  cCtx.restore();
+
+  // Crisp white outer paper rim highlight
+  cCtx.strokeStyle = '#ffffff';
+  cCtx.lineWidth = 3;
+  cCtx.strokeRect(1.5, 1.5, w - 3, h - 3);
+}
+
+/**
+ * Renders a soft ambient drop shadow behind the waiting card onto the dusty-blue lining.
+ */
+function createCardShadowTextures() {
+  const w = 512;
+  const h = 512;
+  const colorCanvas = document.createElement('canvas');
+  colorCanvas.width = w;
+  colorCanvas.height = h;
+  const cCtx = colorCanvas.getContext('2d');
+  cCtx.fillStyle = '#3d4f63';
+  cCtx.fillRect(0, 0, w, h);
+
+  const alphaCanvas = document.createElement('canvas');
+  alphaCanvas.width = w;
+  alphaCanvas.height = h;
+  const aCtx = alphaCanvas.getContext('2d');
+  aCtx.fillStyle = '#000000';
+  aCtx.fillRect(0, 0, w, h);
+
+  aCtx.save();
+  aCtx.shadowColor = '#ffffff';
+  aCtx.shadowBlur = 22;
+  aCtx.fillStyle = 'rgba(255, 255, 255, 0.42)';
+  aCtx.fillRect(28, 28, w - 56, h - 56);
+  aCtx.restore();
+
+  const map = new THREE.CanvasTexture(colorCanvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  const alphaMap = new THREE.CanvasTexture(alphaCanvas);
+  return { map, alphaMap };
+}
+
+function createSideStripTextures() {
+  const w = 64;
+  const h = 512;
+  const colorCanvas = document.createElement('canvas');
+  colorCanvas.width = w;
+  colorCanvas.height = h;
+  const cCtx = colorCanvas.getContext('2d');
+  cCtx.fillStyle = '#eceef3';
+  cCtx.fillRect(0, 0, w, h);
+
+  const alphaCanvas = document.createElement('canvas');
+  alphaCanvas.width = w;
+  alphaCanvas.height = h;
+  const aCtx = alphaCanvas.getContext('2d');
+  aCtx.fillStyle = '#ffffff';
+  aCtx.fillRect(0, 0, w, h);
+
+  const map = new THREE.CanvasTexture(colorCanvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  const alphaMap = new THREE.CanvasTexture(alphaCanvas);
+  return { map, alphaMap };
+}
+
+function createDynamicCanvasPair(w, h) {
+  const colorCanvas = document.createElement('canvas');
+  colorCanvas.width = w;
+  colorCanvas.height = h;
+  const cCtx = colorCanvas.getContext('2d');
+
+  const alphaCanvas = document.createElement('canvas');
+  alphaCanvas.width = w;
+  alphaCanvas.height = h;
+  const aCtx = alphaCanvas.getContext('2d');
+
+  const map = new THREE.CanvasTexture(colorCanvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.anisotropy = 8;
+
+  const alphaMap = new THREE.CanvasTexture(alphaCanvas);
+  alphaMap.anisotropy = 8;
+
+  return { colorCanvas, cCtx, alphaCanvas, aCtx, map, alphaMap };
 }
 
 export class EnvelopeMesh {
+  static setAssetUrls(coverUrl, openedUrl) {
+    if (coverUrl) {
+      imageCache.coverUrl = coverUrl;
+      loadEnvelopeAsset(coverUrl, 'cover');
+    }
+    if (openedUrl) {
+      imageCache.openedUrl = openedUrl;
+      loadEnvelopeAsset(openedUrl, 'opened');
+    }
+    imageCache.loadingStarted = true;
+  }
+
   constructor(themeKey = 'pearl-ivory') {
-    this.width = 2.24;
-    this.height = 1.88;
+    this.width = 2.28;
+    this.height = 1.78;
     this.group = new THREE.Group();
     this.bodyGroup = new THREE.Group();
     this.group.add(this.bodyGroup);
     this.disposables = [];
     this.letterSheets = [];
     this._stackCount = 3;
+    this._waitingCardVisible = true;
     this._pulseLevel = 0;
     this._flapOpenProgress = 0;
+    this._themeKey = themeKey;
+
+    this._onImagesUpdated = () => {
+      this._refreshImageTextures();
+    };
+    imageCache.listeners.add(this._onImagesUpdated);
+    ensureEnvelopeImagesLoaded();
 
     this._build(themeKey);
   }
 
+  _refreshImageTextures() {
+    if (!this._texBundles) return;
+    const theme = ENVELOPE_THEMES[this._themeKey] || ENVELOPE_THEMES['pearl-ivory'];
+    const { closedCover, flapOuter, flapInner, backWall, frontPocket, innerCard } = this._texBundles;
+
+    paintClosedCoverCanvases(
+      closedCover.cCtx,
+      closedCover.aCtx,
+      closedCover.colorCanvas.width,
+      closedCover.colorCanvas.height,
+      theme,
+      imageCache.cover
+    );
+    closedCover.map.needsUpdate = true;
+    closedCover.alphaMap.needsUpdate = true;
+
+    paintOuterFlapCanvases(
+      flapOuter.cCtx,
+      flapOuter.aCtx,
+      flapOuter.colorCanvas.width,
+      flapOuter.colorCanvas.height,
+      theme,
+      imageCache.cover
+    );
+    flapOuter.map.needsUpdate = true;
+    flapOuter.alphaMap.needsUpdate = true;
+
+    paintInnerFlapCanvases(
+      flapInner.cCtx,
+      flapInner.aCtx,
+      flapInner.colorCanvas.width,
+      flapInner.colorCanvas.height,
+      theme,
+      imageCache.opened
+    );
+    flapInner.map.needsUpdate = true;
+    flapInner.alphaMap.needsUpdate = true;
+
+    paintBackWallCanvases(
+      backWall.cCtx,
+      backWall.aCtx,
+      backWall.colorCanvas.width,
+      backWall.colorCanvas.height
+    );
+    backWall.map.needsUpdate = true;
+    backWall.alphaMap.needsUpdate = true;
+
+    paintFrontPocketCanvases(
+      frontPocket.cCtx,
+      frontPocket.aCtx,
+      frontPocket.colorCanvas.width,
+      frontPocket.colorCanvas.height,
+      theme,
+      imageCache.opened,
+      imageCache.cover
+    );
+    frontPocket.map.needsUpdate = true;
+    frontPocket.alphaMap.needsUpdate = true;
+
+    paintWaitingCardCanvases(
+      innerCard.cCtx,
+      innerCard.aCtx,
+      innerCard.colorCanvas.width,
+      innerCard.colorCanvas.height
+    );
+    innerCard.map.needsUpdate = true;
+    innerCard.alphaMap.needsUpdate = true;
+  }
+
   _build(themeKey) {
+    this._themeKey = themeKey;
     const theme = ENVELOPE_THEMES[themeKey] || ENVELOPE_THEMES['pearl-ivory'];
 
-    const backTex = createBackLaceTextures(theme);
-    const pocketTex = createFrontPocketLaceTextures(theme);
-    const flapTex = createLaceFlapTextures(theme);
-    const sideTex = createSideLaceTextures(theme);
-    const sheetTex0 = createLetterSheetTexture(theme, 0);
-    const sheetTex1 = createLetterSheetTexture(theme, 1);
+    const closedCover = createDynamicCanvasPair(1024, 804);
+    const flapOuter = createDynamicCanvasPair(1024, 520);
+    const flapInner = createDynamicCanvasPair(1024, 520);
+    const backWall = createDynamicCanvasPair(1024, 804);
+    const frontPocket = createDynamicCanvasPair(1024, 804);
+    const innerCard = createDynamicCanvasPair(800, 642);
+    const cardShadowTex = createCardShadowTextures();
+    const sideTex = createSideStripTextures();
+
+    this._texBundles = {
+      closedCover,
+      flapOuter,
+      flapInner,
+      backWall,
+      frontPocket,
+      innerCard,
+    };
+
+    this._refreshImageTextures();
 
     this.disposables.push(
-      backTex.map,
-      backTex.alphaMap,
-      pocketTex.map,
-      pocketTex.alphaMap,
-      flapTex.map,
-      flapTex.alphaMap,
+      closedCover.map,
+      closedCover.alphaMap,
+      flapOuter.map,
+      flapOuter.alphaMap,
+      flapInner.map,
+      flapInner.alphaMap,
+      backWall.map,
+      backWall.alphaMap,
+      frontPocket.map,
+      frontPocket.alphaMap,
+      innerCard.map,
+      innerCard.alphaMap,
+      cardShadowTex.map,
+      cardShadowTex.alphaMap,
       sideTex.map,
-      sideTex.alphaMap,
-      sheetTex0,
-      sheetTex1
+      sideTex.alphaMap
     );
 
-    // Smooth anti-aliased openwork cutouts: transparent: true + low alphaTest + depthWrite: true
-    // preserves silky lace threads at screen scale while avoiding stippled mipmap holes.
-    const makeLaceMaterial = (tex, emissiveScale = 1) =>
+    const makeEnvelopeMaterial = (tex, side = THREE.DoubleSide, alphaTest = 0.12) =>
       new THREE.MeshStandardMaterial({
+        color: new THREE.Color(theme.diffuseColor),
         map: tex.map,
         alphaMap: tex.alphaMap,
-        alphaTest: 0.10,
+        alphaTest,
         transparent: true,
         depthWrite: true,
-        roughness: 0.50,
+        roughness: 0.82,
         metalness: 0.02,
-        emissive: new THREE.Color(theme.laceEmissive),
+        emissive: new THREE.Color(theme.emissiveColor),
         emissiveMap: tex.map,
-        emissiveIntensity: theme.laceEmissiveIntensity * emissiveScale,
-        side: THREE.DoubleSide,
+        emissiveIntensity: theme.emissiveIntensity,
+        side,
       });
 
-    const backMat = makeLaceMaterial(backTex, 0.65);
-    const pocketMat = makeLaceMaterial(pocketTex, 1.0);
-    const flapMat = makeLaceMaterial(flapTex, 1.0);
-    const sideMat = makeLaceMaterial(sideTex, 0.70);
+    const backMat = makeEnvelopeMaterial(backWall, THREE.DoubleSide, 0.12);
+    const pocketMat = makeEnvelopeMaterial(frontPocket, THREE.DoubleSide, 0.12);
+    const flapOuterMat = makeEnvelopeMaterial(flapOuter, THREE.FrontSide, 0.12);
+    const flapInnerMat = makeEnvelopeMaterial(flapInner, THREE.FrontSide, 0.12);
+    const sideMat = makeEnvelopeMaterial(sideTex, THREE.DoubleSide, 0.12);
+    this.closedCoverMat = makeEnvelopeMaterial(closedCover, THREE.FrontSide, 0.08);
 
-    const makeSheetMat = (tex) =>
-      new THREE.MeshStandardMaterial({
-        map: tex,
-        roughness: 0.88,
-        metalness: 0.0,
-        emissive: new THREE.Color('#e6dcc6'),
-        emissiveMap: tex,
-        emissiveIntensity: 0.16,
-        side: THREE.DoubleSide,
-      });
+    // Waiting card uses the exact same unlit true-color shader settings as OrigamiCard (foldProgress=0)
+    // so the waiting card and the extracting card have 100% identical color and brightness.
+    const innerCardMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color('#000000'),
+      map: innerCard.map,
+      emissiveMap: innerCard.map,
+      emissive: new THREE.Color('#ffffff'),
+      emissiveIntensity: 1.0,
+      roughness: 0.72,
+      metalness: 0.04,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 1,
+    });
 
-    const sheetMat0 = makeSheetMat(sheetTex0);
-    const sheetMat1 = makeSheetMat(sheetTex1);
+    const cardShadowMat = new THREE.MeshBasicMaterial({
+      map: cardShadowTex.map,
+      alphaMap: cardShadowTex.alphaMap,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.48,
+      side: THREE.FrontSide,
+    });
 
-    this.disposables.push(backMat, pocketMat, flapMat, sideMat, sheetMat0, sheetMat1);
+    this.disposables.push(
+      backMat,
+      pocketMat,
+      flapOuterMat,
+      flapInnerMat,
+      sideMat,
+      innerCardMat,
+      cardShadowMat,
+      this.closedCoverMat
+    );
 
-    // 1. All-Over Floral Lace Back Wall (z = -0.054)
+    // 1. Dusty Slate-Blue Interior Back Wall (z = -0.054)
     const backGeo = new THREE.PlaneGeometry(this.width, this.height);
     const backMesh = new THREE.Mesh(backGeo, backMat);
     backMesh.position.set(0, 0, -0.054);
     backMesh.renderOrder = 1;
     this.bodyGroup.add(backMesh);
 
-    // 2. Stacked Cream Stationery Cards tucked cleanly inside the back of the pocket (z = -0.032 .. -0.014)
+    // 2. Waiting Card inside Pocket — exact same dimensions (CARD_WIDTH * 0.62 x CARD_HEIGHT * 0.62)
+    // and position as the OrigamiCard in the pocket!
+    const innerCardW = CARD_WIDTH * POCKET_CARD_SCALE;
+    const innerCardH = CARD_HEIGHT * POCKET_CARD_SCALE;
+    const innerCardGeo = new THREE.PlaneGeometry(innerCardW, innerCardH);
+    const cardShadowGeo = new THREE.PlaneGeometry(innerCardW + 0.11, innerCardH + 0.09);
+
+    this.innerCardShadowMesh = new THREE.Mesh(cardShadowGeo, cardShadowMat);
+    this.innerCardShadowMesh.position.set(0, POCKET_CARD_CLOSED_Y, -0.036);
+    this.innerCardShadowMesh.renderOrder = 1;
+    this.bodyGroup.add(this.innerCardShadowMesh);
+
+    this.innerCardMesh = new THREE.Mesh(innerCardGeo, innerCardMat);
+    this.innerCardMesh.position.set(0, POCKET_CARD_CLOSED_Y, 0.015);
+    this.innerCardMesh.renderOrder = 2;
+    this.bodyGroup.add(this.innerCardMesh);
+
+    // Backing sheets controlled by setLetterStack()
     this.letterSheets = [];
-    const sheetW = 0.98;
-    const sheetH = 1.36;
-    const sheetGeo = new THREE.PlaneGeometry(sheetW, sheetH);
     const sheetConfigs = [
-      { x: -0.026, y: -0.175, z: -0.032, rz: 0.024, mat: sheetMat1 },
-      { x: 0.022, y: -0.165, z: -0.023, rz: -0.020, mat: sheetMat0 },
-      { x: 0.0, y: -0.155, z: -0.014, rz: 0.004, mat: sheetMat0 },
+      { x: 0, yOff: -0.012, z: -0.016, rz: 0 },
+      { x: 0, yOff: -0.008, z: -0.010, rz: 0 },
+      { x: 0, yOff: -0.004, z: -0.004, rz: 0 },
     ];
     for (const cfg of sheetConfigs) {
-      const sheetMesh = new THREE.Mesh(sheetGeo, cfg.mat);
-      sheetMesh.position.set(cfg.x, cfg.y, cfg.z);
+      const sheetMesh = new THREE.Mesh(innerCardGeo, innerCardMat);
+      sheetMesh.position.set(cfg.x, POCKET_CARD_CLOSED_Y + cfg.yOff, cfg.z);
       sheetMesh.rotation.z = cfg.rz;
       sheetMesh.renderOrder = 2;
       this.bodyGroup.add(sheetMesh);
       this.letterSheets.push(sheetMesh);
     }
 
-    // 3. Delicate Lace Side Gussets
-    const sideGeo = new THREE.PlaneGeometry(0.104, this.height * 0.94);
-    const hw = this.width * 0.5 - 0.018;
+    // 3. Paper Side Gussets
+    const sideGeo = new THREE.PlaneGeometry(0.104, this.height * 0.96);
+    const hw = this.width * 0.5 - 0.016;
     const leftSide = new THREE.Mesh(sideGeo, sideMat);
-    leftSide.position.set(-hw, -0.01, 0.006);
+    leftSide.position.set(-hw, 0, 0.004);
     leftSide.rotation.y = Math.PI * 0.5;
     leftSide.renderOrder = 3;
     this.bodyGroup.add(leftSide);
 
     const rightSide = new THREE.Mesh(sideGeo, sideMat);
-    rightSide.position.set(hw, -0.01, 0.006);
+    rightSide.position.set(hw, 0, 0.004);
     rightSide.rotation.y = -Math.PI * 0.5;
     rightSide.renderOrder = 3;
     this.bodyGroup.add(rightSide);
 
-    // 4. All-Over Floral Lace Front Pocket (z = +0.058)
+    // 4. White Paper Front Pocket with V-Opening & YOUTH Emblem (z = +0.058)
     const frontGeo = new THREE.PlaneGeometry(this.width, this.height);
-    const frontPocket = new THREE.Mesh(frontGeo, pocketMat);
-    frontPocket.position.set(0, 0, 0.058);
-    frontPocket.renderOrder = 4;
-    this.bodyGroup.add(frontPocket);
+    const frontPocketMesh = new THREE.Mesh(frontGeo, pocketMat);
+    frontPocketMesh.position.set(0, 0, 0.058);
+    frontPocketMesh.renderOrder = 4;
+    this.bodyGroup.add(frontPocketMesh);
 
-    // 5. All-Over Floral Lace Triangular Flap (hinged seamlessly at top edge y = +this.height/2)
+    // 5. Dual-Sided Top Flap Hinged at Top Edge (y = +this.height * 0.5)
     this.flapPivot = new THREE.Group();
-    this.flapPivot.position.set(0, this.height * 0.5 - 0.018, 0.072);
+    this.flapPivot.position.set(0, this.height * 0.5 - 0.012, 0.072);
 
-    const flapH = 1.06;
-    const flapGeo = new THREE.PlaneGeometry(this.width, flapH);
-    flapGeo.translate(0, -flapH * 0.5, 0);
-    const flapMesh = new THREE.Mesh(flapGeo, flapMat);
-    flapMesh.renderOrder = 5;
-    this.flapPivot.add(flapMesh);
+    const flapH = this.height * 0.648;
+    const flapOuterGeo = new THREE.PlaneGeometry(this.width, flapH);
+    flapOuterGeo.translate(0, -flapH * 0.5, 0.001);
+    this.flapOuterMesh = new THREE.Mesh(flapOuterGeo, flapOuterMat);
+    this.flapOuterMesh.renderOrder = 5;
+    this.flapPivot.add(this.flapOuterMesh);
+
+    const flapInnerGeo = new THREE.PlaneGeometry(this.width, flapH);
+    flapInnerGeo.translate(0, flapH * 0.5, 0.001);
+    this.flapInnerMesh = new THREE.Mesh(flapInnerGeo, flapInnerMat);
+    this.flapInnerMesh.rotation.x = Math.PI;
+    this.flapInnerMesh.renderOrder = 5;
+    this.flapPivot.add(this.flapInnerMesh);
 
     this.bodyGroup.add(this.flapPivot);
 
-    this.disposables.push(backGeo, sheetGeo, frontGeo, sideGeo, flapGeo);
+    // 6. Seamless Closed Cover Overlay (z = +0.075)
+    const closedCoverGeo = new THREE.PlaneGeometry(this.width, this.height);
+    this.closedCoverMesh = new THREE.Mesh(closedCoverGeo, this.closedCoverMat);
+    this.closedCoverMesh.position.set(0, 0, 0.075);
+    this.closedCoverMesh.renderOrder = 6;
+    this.bodyGroup.add(this.closedCoverMesh);
 
-    this.setFlapOpen(0);
+    this.disposables.push(
+      backGeo,
+      innerCardGeo,
+      cardShadowGeo,
+      sideGeo,
+      frontGeo,
+      flapOuterGeo,
+      flapInnerGeo,
+      closedCoverGeo
+    );
+
+    this.setFlapOpen(this._flapOpenProgress);
     this.setLetterStack(this._stackCount);
+    this.setWaitingCardVisible(this._waitingCardVisible);
   }
 
   triggerExtractPulse(strength = 1.0) {
@@ -1118,7 +992,6 @@ export class EnvelopeMesh {
       this._pulseLevel = Math.max(0, this._pulseLevel - dt * 1.55);
     }
     const pulse = Math.sin(Math.min(1, this._pulseLevel) * Math.PI);
-    // Gentle weightless levitation, breathing tilt & responsive extract recoil
     this.bodyGroup.position.y = Math.sin(time * 1.15) * 0.042 - pulse * 0.078;
     this.bodyGroup.position.x = Math.cos(time * 0.72) * 0.022;
     this.bodyGroup.rotation.x = Math.sin(time * 0.95 + 0.5) * 0.028 + pulse * 0.095;
@@ -1126,37 +999,82 @@ export class EnvelopeMesh {
     this.bodyGroup.rotation.z = Math.cos(time * 0.84) * 0.022;
 
     if (this.flapPivot) {
-      const idleBreeze = this._flapOpenProgress * Math.sin(time * 2.1 + 0.4) * 0.028;
-      const flutter = this._flapOpenProgress * pulse * Math.sin(time * 11.5) * 0.068;
+      const idleBreeze = this._flapOpenProgress * Math.sin(time * 2.1 + 0.4) * 0.024;
+      const flutter = this._flapOpenProgress * pulse * Math.sin(time * 11.5) * 0.062;
       this.flapPivot.rotation.x =
-        -0.025 - this._flapOpenProgress * (Math.PI * 1.02) + idleBreeze + flutter;
+        -this._flapOpenProgress * Math.PI + idleBreeze + flutter;
     }
   }
 
   /**
-   * Controls how many stacked cream letters sit inside the lace pocket (0..3+).
-   * Letters remain tucked behind the front floral lace so they softly show through cutouts.
+   * Shows or hides the waiting card inside the pocket (hidden as the final card is drawn).
+   */
+  setWaitingCardVisible(visible) {
+    this._waitingCardVisible = Boolean(visible);
+    if (this.innerCardMesh) {
+      this.innerCardMesh.visible = this._waitingCardVisible;
+    }
+    if (this.innerCardShadowMesh) {
+      this.innerCardShadowMesh.visible = this._waitingCardVisible;
+    }
+  }
+
+  /**
+   * Controls how many stacked stationery sheets sit inside the pocket (0..3+).
    */
   setLetterStack(remainingCount) {
     this._stackCount = Math.max(0, Math.floor(remainingCount || 0));
     const visibleSheets = Math.min(this.letterSheets.length, this._stackCount);
     for (let i = 0; i < this.letterSheets.length; i++) {
       const fromTop = this.letterSheets.length - 1 - i;
-      this.letterSheets[i].visible = fromTop < visibleSheets;
+      this.letterSheets[i].visible = this._waitingCardVisible && fromTop < visibleSheets;
     }
   }
 
   /**
-   * 0 = sealed closed downward over front pocket; 1 = gracefully opened upward/back.
+   * 0 = sealed closed downward matching cover.png;
+   * 1 = opened upward/back with waiting card risen to POCKET_CARD_OPEN_Y (+0.48) matching opened.png.
    */
   setFlapOpen(progress) {
     const p = Math.max(0, Math.min(1, progress));
     this._flapOpenProgress = p;
-    this.flapPivot.rotation.x = -0.025 - p * (Math.PI * 1.02);
-    this.flapPivot.position.z = 0.072 - p * 0.098;
+
+    if (this.flapPivot) {
+      this.flapPivot.rotation.x = -p * Math.PI;
+      this.flapPivot.position.z = 0.072 - p * 0.126;
+      const order = p > 0.5 ? 1 : 5;
+      if (this.flapOuterMesh) this.flapOuterMesh.renderOrder = order;
+      if (this.flapInnerMesh) this.flapInnerMesh.renderOrder = order;
+    }
+
+    if (this.closedCoverMesh && this.closedCoverMat) {
+      const coverOpacity = 1 - THREE.MathUtils.smoothstep(p, 0.005, 0.12);
+      this.closedCoverMat.opacity = coverOpacity;
+      this.closedCoverMesh.visible = coverOpacity > 0.01;
+    }
+
+    const cardRise = THREE.MathUtils.smoothstep(p, 0.12, 0.92);
+    const cardY = THREE.MathUtils.lerp(POCKET_CARD_CLOSED_Y, POCKET_CARD_OPEN_Y, cardRise);
+    if (this.innerCardMesh) {
+      this.innerCardMesh.position.y = cardY;
+    }
+    if (this.innerCardShadowMesh) {
+      this.innerCardShadowMesh.position.y = cardY;
+    }
+    for (let i = 0; i < this.letterSheets.length; i++) {
+      this.letterSheets[i].position.y = cardY - (this.letterSheets.length - i) * 0.004;
+    }
   }
 
   setTheme(themeKey) {
+    const nextKey = ENVELOPE_THEMES[themeKey] ? themeKey : 'pearl-ivory';
+    if (nextKey === this._themeKey && this.bodyGroup.children.length > 0) {
+      this._refreshImageTextures();
+      this.setFlapOpen(this._flapOpenProgress);
+      this.setWaitingCardVisible(this._waitingCardVisible);
+      this.setLetterStack(this._stackCount);
+      return;
+    }
     while (this.bodyGroup.children.length > 0) {
       this.bodyGroup.remove(this.bodyGroup.children[0]);
     }
@@ -1165,10 +1083,11 @@ export class EnvelopeMesh {
     }
     this.disposables = [];
     this.letterSheets = [];
-    this._build(themeKey);
+    this._build(nextKey);
   }
 
   dispose() {
+    imageCache.listeners.delete(this._onImagesUpdated);
     for (const d of this.disposables) {
       d.dispose?.();
     }

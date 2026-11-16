@@ -4,8 +4,8 @@
  * with planar UV coordinates [0, 1]^2, and defines intermediate + final 3D fold positions.
  */
 
-export const CARD_WIDTH = 1.55;
-export const CARD_HEIGHT = 2.15;
+export const CARD_WIDTH = 2.84;
+export const CARD_HEIGHT = 2.28;
 
 /**
  * Helper to mirror right-half triangles cleanly across x = 0.
