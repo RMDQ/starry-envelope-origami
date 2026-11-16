@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>星夜信封折纸 · 3D 浪漫互动回忆生成器</title>
+  <link rel="stylesheet" href="./styles/main.css">
+</head>
+<body>
+  <div class="app-shell" id="app-shell">
+    <main class="stage-root" id="stage-root">
+      <!-- 3D WebGL Canvas -->
+      <canvas id="scene-canvas" class="scene-canvas" aria-label="深蓝夜空蕾丝信封与折纸飞行 3D 动画舞台"></canvas>
+
+      <!-- Ending Finale Blessing Overlay ("化作星河 / 漫天飞舞") -->
+      <section
+        id="ending-overlay"
+        class="ending-overlay"
+        aria-live="polite"
+        aria-hidden="true"
+      >
+        <div class="ending-card">
+          <p id="ending-title-display" class="ending-title">愿所有温柔与星光，都奔你而来</p>
+          <p id="ending-signature-display" class="ending-signature">—— 致最特别的你</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- 9:16 Recording Frame Resolution Badge (sits outside the 9:16 stage on widescreen) -->
+    <div id="ratio-badge" class="ratio-badge" hidden>Instagram 9:16</div>
+
+    <!-- Live Playback Status Badge (hidden in cinema idle) -->
+    <div id="playback-status" class="playback-status" aria-live="polite">
+      <span id="phase-label">准备就绪</span>
+      <span id="card-counter" class="card-counter"></span>
+    </div>
+
+    <!-- Studio Control Drawer (Editor Mode) -->
+    <aside id="studio-panel" class="studio-panel" aria-label="卡片与动画设置面板">
+      <header class="studio-header">
+        <div>
+          <h1>星夜信封折纸工坊</h1>
+          <p class="studio-subtitle">上传照片或文字卡片 · 高清展示 · 折纸飞舞化作星河</p>
+        </div>
+        <button type="button" id="open-help-btn" class="icon-btn" aria-label="查看录屏与使用说明">
+          录屏指南
+        </button>
+      </header>
+
+      <div class="studio-scroll">
+        <!-- Upload & Compose Area -->
+        <section class="panel-section" aria-labelledby="upload-heading">
+          <div class="section-row">
+            <h2 id="upload-heading">1. 添加卡片素材</h2>
+            <div class="mini-actions">
+              <button type="button" id="load-demo-btn" class="text-btn">载入示例</button>
+              <button type="button" id="clear-cards-btn" class="text-btn danger">清空全部</button>
+            </div>
+          </div>
+
+          <label for="image-upload-input" id="dropzone" class="dropzone">
+            <input
+              type="file"
+              id="image-upload-input"
+              accept="image/*"
+              multiple
+              class="visually-hidden"
+            >
+            <span class="dropzone-title">点击批量上传卡片图片，或拖拽图片到这里</span>
+            <span class="dropzone-hint">支持 JPG / PNG / WebP 多选，3D 展示时保持 100% 原始清晰度</span>
+          </label>
+
+          <details class="text-composer">
+            <summary>+ 添加纯文字 / 祝福卡片</summary>
+            <form id="text-card-form" class="text-card-form">
+              <div class="field">
+                <label for="new-card-title">卡片标题（可选）</label>
+                <input type="text" id="new-card-title" maxlength="40" placeholder="例如：2026 · 初雪的夜晚">
+              </div>
+              <div class="field">
+                <label for="new-card-body">正文内容</label>
+                <textarea id="new-card-body" rows="3" maxlength="260" placeholder="写下你想在夜空中展信诉说的话…"></textarea>
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label for="new-card-tone">信笺纸色</label>
+                  <select id="new-card-tone">
+                    <option value="ivory">月光奶白</option>
+                    <option value="sky">星夜晴蓝</option>
+                    <option value="lavender">雾紫信纸</option>
+                    <option value="blush">樱粉柔光</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="new-card-shape">折纸形态</label>
+                  <select id="new-card-shape">
+                    <option value="inherit">跟随全局</option>
+                    <option value="plane">纸飞机</option>
+                    <option value="butterfly">蝴蝶</option>
+                    <option value="crane">千纸鹤</option>
+                  </select>
+                </div>
+              </div>
+              <button type="submit" class="secondary-btn">添加到卡片队列</button>
+            </form>
+          </details>
+        </section>
+
+        <!-- Card Queue List -->
+        <section class="panel-section" aria-labelledby="queue-heading">
+          <div class="section-row">
+            <h2 id="queue-heading">2. 卡片出场顺序（<span id="queue-count">0</span> 张）</h2>
+          </div>
+          <p id="empty-queue-msg" class="empty-queue-msg" hidden>
+            当前还没有卡片，请上传图片、添加文字卡片，或点击右上角“载入示例”。
+          </p>
+          <ul id="card-list" class="card-list"></ul>
+        </section>
+
+        <!-- Animation & Starry Finale Settings -->
+        <section class="panel-section" aria-labelledby="settings-heading">
+          <h2 id="settings-heading">3. 动画与“化作星河”结尾设置</h2>
+
+          <div class="field-row">
+            <div class="field">
+              <label for="hold-duration">每张展示时长</label>
+              <select id="hold-duration">
+                <option value="1">1 秒（飞速）</option>
+                <option value="2">2 秒（紧凑）</option>
+                <option value="3" selected>3 秒（推荐）</option>
+                <option value="4">4 秒（舒缓）</option>
+                <option value="5">5 秒（细读）</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="global-shape">默认折纸形态</label>
+              <select id="global-shape">
+                <option value="auto" selected>智能轮换（含蝴蝶/千纸鹤）</option>
+                <option value="plane">全部折成纸飞机</option>
+                <option value="butterfly">全部折成蝴蝶</option>
+                <option value="crane">全部折成千纸鹤</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="aspect-ratio-select">录屏画幅比例</label>
+            <select id="aspect-ratio-select">
+              <option value="auto" selected>自适应全屏（跟随当前窗口）</option>
+              <option value="9:16">Instagram 竖屏 9:16（居中画框 · 适配 2560×1600 录屏）</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="envelope-theme">蕾丝信封样式</label>
+            <select id="envelope-theme">
+              <option value="pearl-ivory" selected>月光奶白蕾丝 + 星空内衬</option>
+              <option value="midnight-gold">深蓝夜空烫金蕾丝</option>
+              <option value="lavender-mist">雾紫梦幻蕾丝</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="ending-title-input">星河结尾祝福语</label>
+            <input type="text" id="ending-title-input" maxlength="50" value="愿所有温柔与星光，都奔你而来">
+          </div>
+
+          <div class="field">
+            <label for="ending-signature-input">专属署名 / 落款</label>
+            <input type="text" id="ending-signature-input" maxlength="40" value="—— 致最特别的你">
+          </div>
+
+          <div class="checkbox-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="cinema-hide-toggle" checked>
+              <span>录屏纯净模式（播放时自动淡隐控制栏，悬停或按 Esc 唤出）</span>
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="auto-fullscreen-toggle">
+              <span>点击播放时自动进入全屏（方便直接录屏）</span>
+            </label>
+          </div>
+        </section>
+      </div>
+
+      <footer class="studio-footer">
+        <p id="form-error-msg" class="form-error-msg" role="alert" hidden></p>
+        <p id="config-status-msg" class="config-status-msg" role="status" hidden></p>
+        <div class="config-actions-row">
+          <button type="button" id="save-config-btn" class="secondary-btn config-btn">保存当前配置</button>
+          <button type="button" id="export-config-btn" class="secondary-btn config-btn">导出配置</button>
+          <button type="button" id="import-config-btn" class="secondary-btn config-btn">导入配置</button>
+          <input type="file" id="import-config-input" accept=".json,application/json" class="visually-hidden">
+        </div>
+        <button type="button" id="start-play-btn" class="primary-btn">
+          开始播放 3D 动画
+        </button>
+      </footer>
+    </aside>
+
+    <!-- Floating Playback Controls (Visible during Playback) -->
+    <nav id="playback-bar" class="playback-bar" aria-label="播放控制" hidden>
+      <button type="button" id="toggle-pause-btn" class="ctrl-btn">暂停</button>
+      <button type="button" id="replay-btn" class="ctrl-btn">重播</button>
+      <button type="button" id="ratio-toggle-btn" class="ctrl-btn">9:16 竖屏</button>
+      <button type="button" id="fullscreen-btn" class="ctrl-btn">全屏</button>
+      <button type="button" id="back-edit-btn" class="ctrl-btn accent">返回编辑</button>
+    </nav>
+  </div>
+
+  <!-- Native Modal Dialog for Screen Recording & Shortcuts Guide -->
+  <dialog id="help-dialog" closedby="any" aria-labelledby="help-dialog-title">
+    <header class="dialog-header">
+      <h2 id="help-dialog-title">全屏录屏与操作指南</h2>
+      <form method="dialog">
+        <button type="submit" value="close" class="icon-btn" aria-label="关闭弹窗">关闭</button>
+      </form>
+    </header>
+    <div class="dialog-body">
+      <ol class="guide-list">
+        <li><strong>批量准备卡片</strong>：上传横图或竖图照片（自动完整保留不裁切），也可添加文字卡片并自由调整标题与配文。</li>
+        <li><strong>清晰展信阶段</strong>：每张卡片抽出后会自动飞到镜头正前方，背景启动柔焦景深，文字与照片 100% 锐利停留 3 秒。</li>
+        <li><strong>折纸与星河结尾</strong>：展示后卡片平滑折叠为纸飞机 / 蝴蝶 / 千纸鹤环绕飞舞，最终全部发光升空化作流星雨，中央浮现专属祝福语。</li>
+        <li><strong>一键录屏导出</strong>：勾选「点击播放时自动进入全屏」，开启 Windows <kbd>Win</kbd>+<kbd>G</kbd>、Mac <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>5</kbd> 或 OBS 录屏即可。</li>
+        <li><strong>Instagram 9:16 竖屏录屏</strong>：在「录屏画幅比例」中选择 <strong>Instagram 竖屏 9:16</strong>。在 2560×1600 屏幕上全屏后，中央画框为精确 <strong>900×1600</strong>（9:16），所有控制栏都会自动留在画框外侧，使用 OBS 裁剪中央 900×1600 区域即可获得零遮挡的纯净竖屏视频。</li>
+      </ol>
+      <div class="shortcut-box">
+        <p><strong>播放快捷键：</strong> <kbd>Space</kbd> 暂停/继续 · <kbd>R</kbd> 重新播放 · <kbd>Esc</kbd> 退出全屏 / 返回编辑</p>
+      </div>
+    </div>
+    <footer class="dialog-footer">
+      <form method="dialog">
+        <button type="submit" value="ok" class="primary-btn" autofocus>我知道了</button>
+      </form>
+    </footer>
+  </dialog>
+
+  <script defer src="./dist/app.bundle.js"></script>
+</body>
+</html>

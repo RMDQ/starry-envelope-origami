@@ -1,0 +1,19 @@
+{
+  "name": "starry-envelope-origami",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "3D interactive starry night lace envelope & origami card showcase generator",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --format=iife --outfile=dist/app.bundle.js --minify --sourcemap",
+    "dev": "esbuild src/main.js --bundle --format=iife --outfile=dist/app.bundle.js --sourcemap --watch",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "gsap": "^3.12.7",
+    "three": "^0.174.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.1"
+  }
+}
