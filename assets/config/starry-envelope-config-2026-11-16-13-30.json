@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "savedAt": "2026-11-16T13:30:55.833Z",
+  "settings": {
+    "holdDuration": 2,
+    "origamiShape": "auto",
+    "envelopeTheme": "pearl-ivory",
+    "endingTitle": "我们相信， 每一个生命，都有值得被聆听的故事； 每一句真诚的祝福，都承载着温暖与盼望。  或许我们素未谋面， 但愿这些真挚的祝福， 能为正在阅读的你， 带来温暖与鼓励",
+    "endingSignature": "愿每一份感恩都被珍藏， 每一份恩典都能继续传递。  因为爱从主而来，也愿这份爱，",
+    "cinemaHideControls": true,
+    "autoFullscreen": true,
+    "aspectRatio": "9:16"
+  },
+  "cards": [
+    {
+      "id": "demo-1",
+      "title": "",
+      "text": "希望你不要因为别人的光芒而忽略自己的美好 神创造的你是独特的 愿你有耐心走属于自己的路，也有信心相信祂的安排",
+      "imageDataUrl": null,
+      "layout": "letter",
+      "paperTone": "ivory",
+      "imageFit": "contain",
+      "origamiShape": "inherit"
+    },
+    {
+      "id": "demo-2",
+      "title": "",
+      "text": "希望看到的你不在孤独中，因为神会旁边你，或者以别的发生陪在你身边，希望你不会和我一样，希望你可以过美好的人生，有主陪伴着你！",
+      "imageDataUrl": null,
+      "layout": "letter",
+      "paperTone": "ivory",
+      "imageFit": "contain",
+      "origamiShape": "inherit"
+    },
+    {
+      "id": "demo-3",
+      "title": "",
+      "text": "如果你也在努力改变某个习惯，却觉得自己一直没有进步，希望你不要太快放弃。愿神给你耐心，也帮助你在一次次尝试中慢慢成长。",
+      "imageDataUrl": null,
+      "layout": "letter",
+      "paperTone": "ivory",
+      "imageFit": "contain",
+      "origamiShape": "inherit"
+    },
+    {
+      "id": "card-1794835598772-101",
+      "title": "",
+      "text": "不知道你最近过得怎么样。如果你有时候也觉得孤单，希望你不要觉得只有自己这样。愿你遇到可以一起吃饭 分享生活的人，也愿你在平凡的陪伴中感受到神的爱。",
+      "imageDataUrl": null,
+      "layout": "letter",
+      "paperTone": "ivory",
+      "imageFit": "contain",
+      "origamiShape": "inherit"
+    },
+    {
+      "id": "card-1794835673620-102",
+      "title": "",
+      "text": "“神是我们的避难所，是我们的力量，是我们在患难中随时的帮助。”",
+      "imageDataUrl": null,
+      "layout": "letter",
+      "paperTone": "ivory",
+      "imageFit": "contain",
+      "origamiShape": "inherit"
+    },
+    {
+      "id": "card-1794835688535-103",
+      "title": "",
+      "text": "想对你说，不要因为暂时看不见答案，就怀疑神正在做的事。愿你在等待中仍有平安，在未知中仍有勇气。祂从未忘记你。",
+      "imageDataUrl": null,
+      "layout": "letter",
+      "paperTone": "ivory",
+      "imageFit": "contain",
+      "origamiShape": "inherit"
+    },
+    {
+      "id": "card-1794835704991-104",
+      "title": "",
+      "text": "愿你不只在顺境中看见神的美好，也能在风浪中经历祂的同在。愿你的心有平安，脚步有力量，未来有盼望。",
+      "imageDataUrl": null,
+      "layout": "letter",
+      "paperTone": "ivory",
+      "imageFit": "contain",
+      "origamiShape": "inherit"
+    },
+    {
+      "id": "card-1794835741006-105",
+      "title": "",
+      "text": "想对你说，不要因为暂时看不见答案，就怀疑神正在做的事。愿你在等待中仍有平安，在未知中仍有勇气。祂从未忘记你。",
+      "imageDataUrl": null,
+      "layout": "letter",
+      "paperTone": "ivory",
+      "imageFit": "contain",
+      "origamiShape": "inherit"
+    },
+    {
+      "id": "card-1794835764019-106",
+      "title": "",
+      "text": "“有一位神，有权能创造宇宙万物，也有温柔双手安慰受伤灵魂。有一位神，有权柄审判一切罪恶，也有慈悲体贴人的软弱。” 《有一位神》 赞美之泉",
+      "imageDataUrl": null,
+      "layout": "letter",
+      "paperTone": "ivory",
+      "imageFit": "contain",
+      "origamiShape": "inherit"
+    },
+    {
+      "id": "card-1794835784048-107",
+      "title": "",
+      "text": "希望神一直与你同在，在你困难或开心的时候鼓励你。别忘了祂一直都在。",
+      "imageDataUrl": null,
+      "layout": "letter",
+      "paperTone": "ivory",
+      "imageFit": "contain",
+      "origamiShape": "inherit"
+    }
+  ]
+}
